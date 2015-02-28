@@ -1,0 +1,3 @@
+LuaJIT image library
+edit image.lua to choose what backend
+options are SDL_image and the Lua bindings for my own image library
