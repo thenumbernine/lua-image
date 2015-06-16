@@ -22,8 +22,8 @@ Image.loaders = {
 
 function Image:init(w,h,ch)
 	if type(w) == 'string' then
-		local ext = w:match('.*%.(.-)$')
-		local loader = self.loaders[ext]
+		local ext = w:match'.*%.(.-)$'
+		local loader = ext and self.loaders[ext:lower()]
 		if not loader then
 			error("I don't know how to load a file with ext "..tostring(ext))
 		else
@@ -59,3 +59,4 @@ function Image:save(...)
 end
 
 return Image
+
