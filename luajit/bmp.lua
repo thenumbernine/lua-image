@@ -3,39 +3,39 @@ NOTICE the BMP save/load operates as BGR
 I'm also saving images upside-down ... but I'm working with flipped buffers so it's okay?
 --]]
 local ffi = require 'ffi'
-local gc = require 'gcmem.gcmem'
+local gc = require 'gcmem'
 require 'ffi.c.stdio'
 
 ffi.cdef[[
 
 //wtypes.h
 typedef unsigned short WORD;
-typedef unsigned long DWORD;
-typedef long LONG;
+typedef unsigned int DWORD;
+typedef int LONG;
 
 //wingdi.h
 #pragma pack(1)
 struct tagBITMAPFILEHEADER {
-        WORD    bfType;
-        DWORD   bfSize;
-        WORD    bfReserved1;
-        WORD    bfReserved2;
-        DWORD   bfOffBits;
+	WORD    bfType;
+	DWORD   bfSize;
+	WORD    bfReserved1;
+	WORD    bfReserved2;
+	DWORD   bfOffBits;
 };
 typedef struct tagBITMAPFILEHEADER BITMAPFILEHEADER;
 
 struct tagBITMAPINFOHEADER{
-        DWORD      biSize;
-        LONG       biWidth;
-        LONG       biHeight;
-        WORD       biPlanes;
-        WORD       biBitCount;
-        DWORD      biCompression;
-        DWORD      biSizeImage;
-        LONG       biXPelsPerMeter;
-        LONG       biYPelsPerMeter;
-        DWORD      biClrUsed;
-        DWORD      biClrImportant;
+	DWORD      biSize;
+	LONG       biWidth;
+	LONG       biHeight;
+	WORD       biPlanes;
+	WORD       biBitCount;
+	DWORD      biCompression;
+	DWORD      biSizeImage;
+	LONG       biXPelsPerMeter;
+	LONG       biYPelsPerMeter;
+	DWORD      biClrUsed;
+	DWORD      biClrImportant;
 };
 typedef struct tagBITMAPINFOHEADER BITMAPINFOHEADER;
 
@@ -47,7 +47,7 @@ local exports = {}
 
 exports.load = function(filename)
 	local file = ffi.C.fopen(filename, 'rb')
-	if not file then error("failed to open file "..filename.." for reading") end
+	if file == nil then error("failed to open file "..filename.." for reading") end
 
 	local fileHeader = gc.new('BITMAPFILEHEADER', 1)
 	ffi.C.fread(fileHeader, ffi.sizeof(fileHeader[0]), 1, file)
@@ -82,7 +82,8 @@ exports.load = function(filename)
 	print('colors important', infoHeader[0].biClrImportant)
 --]]
 
-	assert(infoHeader[0].biBitCount == 24, "only supports 24-bpp images")
+	assert(infoHeader[0].biBitCount == 24 or infoHeader[0].biBitCount == 32, "only supports 24-bpp or 32-bpp images")
+	channels = infoHeader[0].biBitCount/8
 	assert(infoHeader[0].biCompression == 0, "only supports uncompressed images")
 
 	ffi.C.fseek(file, fileHeader[0].bfOffBits, ffi.C.SEEK_SET)
@@ -91,13 +92,18 @@ exports.load = function(filename)
 	local height = infoHeader[0].biHeight
 	assert(height >= 0, "currently doesn't support flipped images")
 
-	local data = gc.new('char', width * height * 3)
+	local data = gc.new('unsigned char', width * height * channels)
 
-	local padding = (4-(3 * width))%4
+	local padding = (4-(channels * width))%4
 
 	for y=height-1,0,-1 do
-		-- read it out as BGR	
-		ffi.C.fread(data + 3 * width * y, 3 * width, 1, file)
+		-- write it out as BGR	
+		ffi.C.fread(data + channels * width * y, channels * width, 1, file)
+	
+		for x=0,width-1 do
+			local offset = channels*(x+width*y)
+			data[0+offset], data[1+offset], data[2+offset] = data[2+offset], data[1+offset], data[0+offset]
+		end
 
 		if padding ~= 0 then 
 			ffi.C.fseek(file, padding, ffi.C.SEEK_SET)
@@ -110,6 +116,8 @@ exports.load = function(filename)
 		data = data,
 		width = width,
 		height = height,
+		channels = channels,
+		format = 'unsigned char',
 		xdpi = infoHeader[0].biXPelsPerMeter,
 		ydpi = infoHeader[0].biYPelsPerMeter,
 	}
@@ -119,17 +127,18 @@ exports.save = function(args)
 	local filename = assert(args.filename, "expected filename")
 	local width = assert(args.width, "expected width")
 	local height = assert(args.height, "expected height")
+	local channels = assert(args.channels, "expected channels")
 	local data = assert(args.data, "expected data")
 
-	local padding = (4-(3*width))%4
-	local rowsize = width * 3 + padding
+	local padding = (4-(channels*width))%4
+	local rowsize = width * channels + padding
 
 	local fileHeader = gc.new('BITMAPFILEHEADER', 1)
 	local infoHeader = gc.new('BITMAPINFOHEADER', 1)
 	local offset = ffi.sizeof(fileHeader[0]) + ffi.sizeof(infoHeader[0])
 	
 	local file = ffi.C.fopen(filename, 'wb')
-	if not file then error("failed to open file "..filename.." for writing") end
+	if file == nil then error("failed to open file "..filename.." for writing") end
 
 	fileHeader[0].bfType = 0x4d42
 	fileHeader[0].bfSize = rowsize * height + offset
@@ -142,7 +151,7 @@ exports.save = function(args)
 	infoHeader[0].biWidth = width
 	infoHeader[0].biHeight = height
 	infoHeader[0].biPlanes = 1
-	infoHeader[0].biBitCount = 24
+	infoHeader[0].biBitCount = channels*8
 	infoHeader[0].biCompression = 0
 	infoHeader[0].biSizeImage = 0	-- rowsize * height?  the source has zero here
 	infoHeader[0].biXPelsPerMeter = args.xdpi or 300
@@ -152,13 +161,14 @@ exports.save = function(args)
 	local zero = gc.new('int', 1)
 	zero[0] = 0
 
-	local row = gc.new('unsigned char', 3 * width)
+	local row = gc.new('unsigned char', channels * width)
 	for y=height-1,0,-1 do
-		ffi.copy(row, data + 3 * width * y, 3 * width)
+		ffi.copy(row, data + channels * width * y, channels * width)
 		for x=0,width-1 do
-			row[0+3*x], row[2+3*x] = row[2+3*x], row[0+3*x]
+			local offset = channels * x
+			row[0+offset], row[2+offset] = row[2+offset], row[0+offset]
 		end
-		ffi.C.fwrite(row, 3 * width, 1, file)
+		ffi.C.fwrite(row, channels * width, 1, file)
 		if padding ~= 0 then 
 			ffi.C.fwrite(zero, padding, 1, file) 
 		end
