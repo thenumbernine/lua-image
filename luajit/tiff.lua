@@ -1,5 +1,6 @@
 local ffi = require 'ffi'
 local tiff = require 'ffi.tiff'
+local gcmem = require 'ext.gcmem'
 
 local exports = {}
 
@@ -13,7 +14,7 @@ exports.load = function(filename)
 	if not fp then error("failed to open file "..filename.." for reading") end
 
 	local function readtag(tagname, type)
-		local result = ffi.new(type..'[1]') 
+		local result = gcmem.new(type, 1)
 		if tiff.TIFFGetField(fp, assert(tiff[tagname]), result) ~= 1 then error("failed to read tag "..tagname) end
 		return result[0]
 	end
@@ -25,7 +26,7 @@ exports.load = function(filename)
 	local pixelSize = math.floor(bitsPerSample / 8 * samplesPerPixel)
 	if pixelSize == 0 then error("unsupported bitsPerSample="..bitsPerSample.." sampleFormat="..sampleFormat) end
 	
-	local data = ffi.new('unsigned char[?]', width * height * pixelSize)
+	local data = gcmem.new('unsigned char', width * height * pixelSize)
 	local ptr = data
 	for strip=0,tiff.TIFFNumberOfStrips(fp)-1 do
 		tiff.TIFFReadEncodedStrip(fp, strip, ptr, -1)

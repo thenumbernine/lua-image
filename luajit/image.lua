@@ -5,7 +5,7 @@ so this needs to be changed to work with RGBA too
 --]]
 local ffi = require 'ffi'
 local class = require 'ext.class'
-local gc = require 'gcmem'
+local gcmem = require 'ext.gcmem'
 
 local Image = class()
 
@@ -35,7 +35,7 @@ function Image:init(width,height,channels,format,generator)
 		self.format = result.format or 'unsigned char'	-- the typical result
 		self.channels = result.channels or 3
 	else
-		self.buffer = gc.new(format, width * height * channels)
+		self.buffer = gcmem.new(format, width * height * channels)
 		self.width = width
 		self.height = height
 		self.channels = channels
@@ -79,7 +79,7 @@ local formatInfo = {
 }
 
 function Image:setFormat(newFormat)
-	local newData = gc.new(newFormat, self.width * self.height * self.channels)
+	local newData = gcmem.new(newFormat, self.width * self.height * self.channels)
 	local dst = Image(self.width, self.height, self.channels, newFormat)
 	local fromFormatInfo = formatInfo[self.format]
 	local toFormatInfo = formatInfo[newFormat]

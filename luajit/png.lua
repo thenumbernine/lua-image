@@ -1,7 +1,7 @@
 local ffi = require 'ffi'
 require 'ffi.c.string'	--memcpy
 local png = require 'ffi.png'
-local gc = require 'gcmem'
+local gcmem = require 'ext.gcmem'
 
 local exports = {}
 
@@ -11,7 +11,7 @@ local libpngVersion = "1.6.10"
 exports.load = function(filename)
 	assert(filename, "expected filename")
 
-	local header = gc.new('char',8)	-- 8 is the maximum size that can be checked
+	local header = gcmem.new('char',8)	-- 8 is the maximum size that can be checked
 
 	-- open file and test for it being a png
 	local fp = ffi.C.fopen(filename, 'rb')
@@ -64,7 +64,7 @@ exports.load = function(filename)
 			[png.PNG_COLOR_TYPE_RGB] = 3,
 			[png.PNG_COLOR_TYPE_RGB_ALPHA] = 4,
 		})[colorType] or error('got unknown colorType')
-	local data = gc.new('unsigned char', width * height * channels)
+	local data = gcmem.new('unsigned char', width * height * channels)
 	-- read data from rows directly
 	for y=0,height-1 do
 		ffi.C.memcpy(ffi.cast('unsigned char*', data) + channels*width*y, row_pointers[y], channels*width)
@@ -123,7 +123,7 @@ exports.save = function(args)
 
 	png.png_write_info(png_ptr, info_ptr)
 
-	local rowptrs = gc.new('unsigned char *', height)
+	local rowptrs = gcmem.new('unsigned char *', height)
 	for y=0,height-1 do
 		rowptrs[y] = data + channels*width*y
 	end

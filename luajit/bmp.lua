@@ -3,7 +3,7 @@ NOTICE the BMP save/load operates as BGR
 I'm also saving images upside-down ... but I'm working with flipped buffers so it's okay?
 --]]
 local ffi = require 'ffi'
-local gc = require 'gcmem'
+local gcmem = require 'ext.gcmem'
 require 'ffi.c.stdio'
 
 ffi.cdef[[
@@ -49,7 +49,7 @@ exports.load = function(filename)
 	local file = ffi.C.fopen(filename, 'rb')
 	if file == nil then error("failed to open file "..filename.." for reading") end
 
-	local fileHeader = gc.new('BITMAPFILEHEADER', 1)
+	local fileHeader = gcmem.new('BITMAPFILEHEADER', 1)
 	ffi.C.fread(fileHeader, ffi.sizeof(fileHeader[0]), 1, file)
 
 --[[
@@ -64,7 +64,7 @@ exports.load = function(filename)
 	assert(fileHeader[0].bfType == 0x4d42, "image has bad signature")
 	-- assert that the reserved are zero?
 	
-	local infoHeader = gc.new('BITMAPINFOHEADER', 1)
+	local infoHeader = gcmem.new('BITMAPINFOHEADER', 1)
 	ffi.C.fread(infoHeader, ffi.sizeof(infoHeader[0]), 1, file)
 
 --[[
@@ -92,7 +92,7 @@ exports.load = function(filename)
 	local height = infoHeader[0].biHeight
 	assert(height >= 0, "currently doesn't support flipped images")
 
-	local data = gc.new('unsigned char', width * height * channels)
+	local data = gcmem.new('unsigned char', width * height * channels)
 
 	local padding = (4-(channels * width))%4
 
@@ -133,8 +133,8 @@ exports.save = function(args)
 	local padding = (4-(channels*width))%4
 	local rowsize = width * channels + padding
 
-	local fileHeader = gc.new('BITMAPFILEHEADER', 1)
-	local infoHeader = gc.new('BITMAPINFOHEADER', 1)
+	local fileHeader = gcmem.new('BITMAPFILEHEADER', 1)
+	local infoHeader = gcmem.new('BITMAPINFOHEADER', 1)
 	local offset = ffi.sizeof(fileHeader[0]) + ffi.sizeof(infoHeader[0])
 	
 	local file = ffi.C.fopen(filename, 'wb')
@@ -158,10 +158,10 @@ exports.save = function(args)
 	infoHeader[0].biYPelsPerMeter = args.ydpi or 300
 	ffi.C.fwrite(infoHeader, ffi.sizeof(infoHeader[0]), 1, file)
 
-	local zero = gc.new('int', 1)
+	local zero = gcmem.new('int', 1)
 	zero[0] = 0
 
-	local row = gc.new('unsigned char', channels * width)
+	local row = gcmem.new('unsigned char', channels * width)
 	for y=height-1,0,-1 do
 		ffi.copy(row, data + channels * width * y, channels * width)
 		for x=0,width-1 do
@@ -174,10 +174,10 @@ exports.save = function(args)
 		end
 	end
 
-	gc.free(zero)
-	gc.free(row)
-	gc.free(fileHeader)
-	gc.free(infoHeader)
+	gcmem.free(zero)
+	gcmem.free(row)
+	gcmem.free(fileHeader)
+	gcmem.free(infoHeader)
 
 	ffi.C.fclose(file)
 end

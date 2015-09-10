@@ -1,7 +1,7 @@
 local ffi = require 'ffi'
 require 'ffi.c.stdio'	-- fopen
 local jpeg = require 'ffi.jpeg'
-local gc = require 'gcmem'
+local gcmem = require 'ext.gcmem'
 
 local exports = {}
 
@@ -11,10 +11,16 @@ struct my_error_mgr {
 	jmp_buf setjmp_buffer;	/* for return to caller */
 };
 ]]
+local errorExt = function(cinfo)
+	-- nothing? return?
+	local myerr = ffi.cast('my_error_ptr', cinfo[0].err)
+	ffi.C.longjmp(myerr[0].setjmp_buffer, 1)
+end
+local errorExitPtr = ffi.cast('void(*)(j_common_ptr)', errorExit)
 
 exports.load = function(filename)
-	local cinfo = gc.new('struct jpeg_decompress_struct', 1)
-	local jerr = gc.new('struct my_error_mgr', 1)
+	local cinfo = gcmem.new('struct jpeg_decompress_struct', 1)
+	local jerr = gcmem.new('struct my_error_mgr', 1)
 
 	local infile = ffi.C.fopen(filename, 'rb')
 	if infile == nil then
@@ -22,11 +28,7 @@ exports.load = function(filename)
 	end
 
 	cinfo[0].err = jpeg.jpeg_std_error( ffi.cast('struct jpeg_error_mgr*',jerr))
-	jerr[0].pub.error_exit = ffi.cast('void(*)(j_common_ptr)', function(cinfo)
-		-- nothing? return?
-		local myerr = ffi.cast('my_error_ptr', cinfo[0].err)
-		ffi.C.longjmp(myerr[0].setjmp_buffer, 1)
-	end)
+	jerr[0].pub.error_exit = errorExitPtr
 	if ffi.C.setjmp(jerr[0].setjmp_buffer) ~= 0 then
 		jpeg.jpeg_destroy_decompress(cinfo)
 		ffi.C.fclose(infile)
@@ -45,7 +47,7 @@ exports.load = function(filename)
 	local width = cinfo[0].output_width
 	local height = cinfo[0].output_height
 	local channels = 3
-	local data = gc.new('unsigned char', width * height * channels)
+	local data = gcmem.new('unsigned char', width * height * channels)
 
 	local y = 0
 	while cinfo[0].output_scanline < cinfo[0].output_height do
@@ -74,8 +76,8 @@ exports.save = function(args)
 	local data = assert(args.data, "expected data")
 	local quality = args.quality or 90
 
-	local cinfo = gc.new('struct jpeg_compress_struct', 1)
-	local jerr = gc.new('struct jpeg_error_mgr', 1)
+	local cinfo = gcmem.new('struct jpeg_compress_struct', 1)
+	local jerr = gcmem.new('struct jpeg_error_mgr', 1)
 	--FILE * outfile;		/* target file */
 	--int row_stride;		/* physical row width in image buffer */
 
@@ -102,7 +104,7 @@ exports.save = function(args)
 
   	local row_stride = width * 3
 
-	local row_pointer = gc.new('JSAMPROW', 1)
+	local row_pointer = gcmem.new('JSAMPROW', 1)
 	while cinfo[0].next_scanline < cinfo[0].image_height do
 		row_pointer[0] = data + cinfo[0].next_scanline * row_stride
 		jpeg.jpeg_write_scanlines(cinfo, row_pointer, 1)
