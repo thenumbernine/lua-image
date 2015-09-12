@@ -10,76 +10,79 @@ local libpngVersion = "1.6.10"
 
 exports.load = function(filename)
 	assert(filename, "expected filename")
+	return select(2, assert(xpcall(function()
+		local header = gcmem.new('char',8)	-- 8 is the maximum size that can be checked
 
-	local header = gcmem.new('char',8)	-- 8 is the maximum size that can be checked
+		-- open file and test for it being a png
+		local fp = ffi.C.fopen(filename, 'rb')
+		if fp == nil then
+			error(string.format("[read_png_file] File %s could not be opened for reading", filename))
+		end
 
-	-- open file and test for it being a png
-	local fp = ffi.C.fopen(filename, 'rb')
-	if fp == nil then
-		error(string.format("[read_png_file] File %s could not be opened for reading", filename))
-	end
+		ffi.C.fread(header, 1, 8, fp)
+		if png.png_sig_cmp(header, 0, 8) ~= 0 then
+			error(string.format("[read_png_file] File %s is not recognized as a PNG file", filename))
+		end
 
-	ffi.C.fread(header, 1, 8, fp)
-	if png.png_sig_cmp(header, 0, 8) ~= 0 then
-		error(string.format("[read_png_file] File %s is not recognized as a PNG file", filename))
-	end
+		-- initialize stuff
+		local png_ptr = png.png_create_read_struct(libpngVersion, nil, nil, nil)
 
-	-- initialize stuff
-	local png_ptr = png.png_create_read_struct(libpngVersion, nil, nil, nil)
+		if png_ptr == nil then
+			error("[read_png_file] png_create_read_struct failed")
+		end
 
-	if png_ptr == nil then
-		error("[read_png_file] png_create_read_struct failed")
-	end
+		local info_ptr = png.png_create_info_struct(png_ptr)
+		if info_ptr == nil then
+			error("[read_png_file] png_create_info_struct failed")
+		end
 
-	local info_ptr = png.png_create_info_struct(png_ptr)
-	if info_ptr == nil then
-		error("[read_png_file] png_create_info_struct failed")
-	end
+		png.png_init_io(png_ptr, fp)
+		png.png_set_sig_bytes(png_ptr, 8)
 
-	png.png_init_io(png_ptr, fp)
-	png.png_set_sig_bytes(png_ptr, 8)
+		png.png_read_png(png_ptr, info_ptr, png.PNG_TRANSFORM_IDENTITY, nil)
 
-	png.png_read_png(png_ptr, info_ptr, png.PNG_TRANSFORM_IDENTITY, nil)
+		local width = png.png_get_image_width(png_ptr, info_ptr)
+		local height = png.png_get_image_height(png_ptr, info_ptr)
+		local colorType = png.png_get_color_type(png_ptr, info_ptr)
+		local bit_depth = png.png_get_bit_depth(png_ptr, info_ptr)
+		if colorType ~= png.PNG_COLOR_TYPE_RGB
+		and colorType ~= png.PNG_COLOR_TYPE_RGB_ALPHA
+		then
+			error("expected colorType to be PNG_COLOR_TYPE_RGB or PNG_COLOR_TYPE_RGB_ALPHA, got "..colorType)
+		end
+		assert(bit_depth == 8, "can only handle 8-bit images at the moment")
 
-	local width = png.png_get_image_width(png_ptr, info_ptr)
-	local height = png.png_get_image_height(png_ptr, info_ptr)
-	local colorType = png.png_get_color_type(png_ptr, info_ptr)
-	local bit_depth = png.png_get_bit_depth(png_ptr, info_ptr)
-	if colorType ~= png.PNG_COLOR_TYPE_RGB
-	and colorType ~= png.PNG_COLOR_TYPE_RGB_ALPHA
-	then
-		error("expected colorType to be PNG_COLOR_TYPE_RGB or PNG_COLOR_TYPE_RGB_ALPHA, got "..colorType)
-	end
-	assert(bit_depth == 8, "can only handle 8-bit images at the moment")
+		local number_of_passes = png.png_set_interlace_handling(png_ptr)
+		-- looks like png 1.5 needed this but png 1.6 doesn't
+		--png.png_read_update_info(png_ptr, info_ptr)
 
-	local number_of_passes = png.png_set_interlace_handling(png_ptr)
-	-- looks like png 1.5 needed this but png 1.6 doesn't
-	--png.png_read_update_info(png_ptr, info_ptr)
+		-- read file
 
-	-- read file
+		assert(ffi.sizeof('png_byte') == 1)
+		local row_pointers = png.png_get_rows(png_ptr, info_ptr)
+		local channels = ({
+				[png.PNG_COLOR_TYPE_RGB] = 3,
+				[png.PNG_COLOR_TYPE_RGB_ALPHA] = 4,
+			})[colorType] or error('got unknown colorType')
+		local data = gcmem.new('unsigned char', width * height * channels)
+		-- read data from rows directly
+		for y=0,height-1 do
+			ffi.C.memcpy(ffi.cast('unsigned char*', data) + channels*width*y, row_pointers[y], channels*width)
+		end
 
-	assert(ffi.sizeof('png_byte') == 1)
-	local row_pointers = png.png_get_rows(png_ptr, info_ptr)
-	local channels = ({
-			[png.PNG_COLOR_TYPE_RGB] = 3,
-			[png.PNG_COLOR_TYPE_RGB_ALPHA] = 4,
-		})[colorType] or error('got unknown colorType')
-	local data = gcmem.new('unsigned char', width * height * channels)
-	-- read data from rows directly
-	for y=0,height-1 do
-		ffi.C.memcpy(ffi.cast('unsigned char*', data) + channels*width*y, row_pointers[y], channels*width)
-	end
+		-- TODO free row_pointers?
 
-	-- TODO free row_pointers?
+		ffi.C.fclose(fp)
 
-	ffi.C.fclose(fp)
-
-	return {
-		data = data,
-		width = width,
-		height = height,
-		channels = channels,
-	}
+		return {
+			data = data,
+			width = width,
+			height = height,
+			channels = channels,
+		}
+	end, function(err)
+		return 'for filename '..filename..'\n'..err..'\n'..debug.traceback()
+	end)))
 end
 
 exports.save = function(args)
