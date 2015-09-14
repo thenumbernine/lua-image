@@ -117,19 +117,26 @@ function Image:rgb()
 				dst.buffer[2 + 3 * (i + dst.width * j)] = grey
 			else
 				local index = self.channels * (i + self.width * j)
-				local r,g,b = self.buffer[0 + index], self.buffer[1 + index], self.buffer[2 + index]
-				dst.buffer[0 + 3 * (i + self.width * j)] = r or 0
-				dst.buffer[1 + 3 * (i + self.width * j)] = g or 0
-				dst.buffer[2 + 3 * (i + self.width * j)] = b or 0
+				dst.buffer[0 + 3 * (i + self.width * j)] = self.channels < 1 and 0 or self.buffer[0 + index]
+				dst.buffer[1 + 3 * (i + self.width * j)] = self.channels < 2 and 0 or self.buffer[1 + index]
+				dst.buffer[2 + 3 * (i + self.width * j)] = self.channels < 3 and 0 or self.buffer[2 + index]
 			end
 		end
 	end
 	return dst
 end
 
+function Image:clamp(min,max)
+	local result = self:clone()
+	for i=0,result.width*result.height*result.channels-1 do
+		result.buffer[i] = math.max(min, math.min(max, result.buffer[i]))
+	end
+	return result
+end
+
 function Image:save(filename, ...)
 	local original = self
-	self = self:rgb():setFormat'unsigned char'
+	self = self:rgb():clamp(0,1):setFormat'unsigned char'
 	assert(self.channels == 3, "expected only 3 channels")
 	local ext = filename:match'.*%.(.-)$'
 	local loader = ext and self.loaders[ext:lower()]
@@ -347,21 +354,29 @@ end
 function Image:kernel(kernel)
 	assert(kernel.channels == 1)
 	local dst = Image(self.width, self.height, self.channels, self.format)
+	
+	local normalization = 0
+	for y=0,kernel.height-1 do
+		for x=0,kernel.width-1 do
+			local kernelValue = kernel.buffer[x+kernel.width*y]
+			normalization = normalization + kernelValue
+		end
+	end
+	normalization = 1 / normalization 
+
 	for j=0,self.height-1 do
 		for i=0,self.width-1 do
 			for ch=0,self.channels-1 do
-				local n = 0
-				local d = 0
+				local sum = 0
 				for y=0,kernel.height-1 do
 					for x=0,kernel.width-1 do
 						local sx = (i + x + self.width) % self.width
 						local sy = (j + y + self.height) % self.height
-						local k = kernel.buffer[x+kernel.width*y]
-						n = n + k * self.buffer[ch + self.channels * (sx + self.width * sy)]
-						d = d + k
+						local kernelValue = kernel.buffer[x+kernel.width*y]
+						sum = sum + kernelValue * self.buffer[ch + self.channels * (sx + self.width * sy)]
 					end
 				end
-				dst.buffer[ch + self.channels * (i + self.width * j)] = n / d
+				dst.buffer[ch + self.channels * (i + self.width * j)] = normalization * sum 
 			end
 		end
 	end
@@ -416,49 +431,43 @@ function Image:norm()
 	return self:dot(self)
 end 
 
---[[
-args:
-	A = linear function applied to image
-	epsilon = error tolerance
-	maxiter = max iterations to run
-
-TODO use LinearSolvers
-	- abstract vec() and :norm() and make error tracking optional
---]]
 function Image:solveConjugateGradient(args)
 	-- optionally accept a single function as the linear function, use defaults for the rest
 	if type(args) == 'function' then args = {A=args} end
-	
-	local A = assert(args.A, "expected A")
-	local epsilon = args.epsilon or 1e-50	--1e-20
-	local maxiter = args.maxiter or 10000	--100
-	
-	local b = self:clone()
-	local x = b:clone()
-	local r = b - A(x)
-	local r2 = r:norm()
---	io.stderr:write(r2,'\n')
-	if r2 < epsilon then return x end
-	local p = r:clone()
-	for iter=1,maxiter do
-		local Ap = A(p)
-		local alpha = r2 / p:dot(Ap)
-		x = x + p * alpha
-		local nr = r - Ap * alpha
-		local nr2 = nr:norm()
---		io.stderr:write(nr2,'\n')
-		local beta = nr2 / r2
-		if nr2 < epsilon then break end
-		r = nr
-		r2 = nr2
-		p = r + p * beta
-	end
-	return x
+
+	local ConjugateGradient = require 'LinearSolvers.ConjugateGradient'
+	return ConjugateGradient{
+		A = args.A,
+		b = self,
+		clone = Image.clone,
+		dot = Image.dot,
+		norm = Image.norm,
+		errorCallback = function(err) io.stderr:write(err,'\n') end,
+		epsilon = args.epsilon,
+		maxiter = args.maxiter,
+	}
+end
+
+function Image:solveConjugateResidual(args)
+	-- optionally accept a single function as the linear function, use defaults for the rest
+	if type(args) == 'function' then args = {A=args} end
+
+	local ConjugateResidual = require 'LinearSolvers.ConjugateResidual'
+	return ConjugateResidual{
+		A = args.A,
+		b = self,
+		clone = Image.clone,
+		dot = Image.dot,
+		norm = Image.norm,
+		errorCallback = function(err) io.stderr:write(err,'\n') end,
+		epsilon = args.epsilon,
+		maxiter = args.maxiter,
+	}
 end
 
 Image.simpleBlurKernel = Image(3,3,1,'double',{0,1,0, 1,4,1, 0,1,0})/8
 function Image:simpleBlur()
-	return self:kernel(simpleBlurKernel)
+	return self:kernel(self.simpleBlurKernel)
 end
 
 return Image
