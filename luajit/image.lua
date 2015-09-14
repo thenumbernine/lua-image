@@ -40,7 +40,7 @@ function Image:init(width,height,channels,format,generator)
 		self.height = height
 		self.channels = channels
 		self.format = format
-		if generator then
+		if type(generator) == 'function' then
 			for y=0,self.height-1 do
 				for x=0,self.width-1 do
 					local values = {generator(x,y)}
@@ -48,6 +48,10 @@ function Image:init(width,height,channels,format,generator)
 						self.buffer[ch + self.channels * (x + self.width * y)] = values[ch+1] or 0
 					end
 				end
+			end
+		elseif type(generator) == 'table' then
+			for i=0,self.width*self.height*self.channels-1 do
+				self.buffer[i] = generator[i+1]
 			end
 		end
 	end
@@ -173,13 +177,18 @@ for _,info in ipairs{
 	{op='__mod', func=function(a,b) return a % b end},
 } do
 	Image[info.op] = function(a,b)
-		if type(b) ~= 'number' then
+		local aIsImage = type(a) == 'table' and a.isa and a:isa(Image)
+		local bIsImage = type(b) == 'table' and b.isa and b:isa(Image)
+		if aIsImage and bIsImage then 
 			assert(a.width == b.width)
 			assert(a.height == b.height)
 			assert(a.channels == b.channels)
 		end
-		local c = a:clone()
-		for index=0,a.width*a.height*a.channels-1 do
+		local width = aIsImage and a.width or b.width
+		local height = aIsImage and a.height or b.height
+		local channels = aIsImage and a.channels or b.channels
+		local c = Image(width, height, channels, aIsImage and a.format or b.format)
+		for index=0,width*height*channels-1 do
 			local va = type(a) == 'number' and a or a.buffer[index]
 			local vb = type(b) == 'number' and b or b.buffer[index]
 			c.buffer[index] = info.func(va, vb)
@@ -335,16 +344,96 @@ function Image:kernel(kernel)
 	return dst
 end
 
+function Image:transpose()
+	local dst = Image(self.height, self.width, self.channels, self.format)
+	for j=0,dst.height-1 do
+		for i=0,dst.width-1 do
+			for ch=0,dst.channels-1 do
+				dst.buffer[ch+self.channels*(i+dst.width*j)] = self.buffer[ch+self.channels*(j+dst.height*i)]
+			end
+		end
+	end
+	return dst
+end
+
+-- static function
+function Image.gaussianKernel(sigma, width, height)
+	if not width then width = 6*math.floor(sigma)+1 end
+	if not height then height = width end
+	local sigmaSq = sigma^2
+	local normalization = 1 / math.sqrt(2 * math.pi * sigmaSq)
+	return Image(width, height, 1, 'double', function(x,y)
+		local dx = (x+.5) - (width/2)
+		local dy = (y+.5) - (height/2)
+		return normalization * math.exp((-dx*dx-dy*dy)/sigmaSq) 
+	end)
+end
+
 function Image:gaussianBlur(size, sigma)
-	sigma = sigma or size / math.sqrt(2)
-	local sigmaSq = sigma * sigma
-	return self:kernel(
-		Image(2*size+1, 2*size+1, 1, 'double', function(x,y)
-			local dx = x - size
-			local dy = y - size
-			return math.exp((-dx*dx-dy*dy)/sigmaSq)
-		end)
-	)
+	sigma = sigma or size / 3
+	-- separate kernels and apply individually for performance's sake
+	local xKernel = Image.gaussianKernel(sigma, 2*size+1, 1)
+	local yKernel = xKernel:transpose()
+	return self:kernel(xKernel):kernel(yKernel)
+end
+
+function Image.dot(a,b)
+	assert(a.width == b.width)
+	assert(a.height == b.height)
+	assert(a.channels == b.channels)
+	local sum = 0
+	for i=0,a.width*a.height*a.channels-1 do
+		sum = sum + a.buffer[i] * b.buffer[i]
+	end
+	return sum
+end
+
+function Image:norm() return self:dot(self) end 
+
+--[[
+args:
+	A = linear function applied to image
+	epsilon = error tolerance
+	maxiter = max iterations to run
+
+TODO use LinearSolvers
+	- abstract vec() and :norm() and make error tracking optional
+--]]
+function Image:solveConjGrad(args)
+	-- optionally accept a single function as the linear function, use defaults for the rest
+	if type(args) == 'function' then args = {A=args} end
+	
+	local A = assert(args.A, "expected A")
+	local epsilon = args.epsilon or 1e-20
+	local maxiter = args.maxiter or 100
+	
+	local b = self:clone()
+	local x = b:clone()
+	local r = b - A(x)
+	local r2 = r:norm()
+	print('error',r2)
+	if r2 < epsilon then return x end
+	local p = r:clone()
+	for iter=1,maxiter do
+		local Ap = A(p)
+		local alpha = r2 / Image.dot(p, Ap)
+		x = x + alpha * p
+		local nr = r - alpha * Ap
+		local nr2 = nr:norm()
+		print('error',nr2)
+		local beta = nr2 / r2
+		if nr2 < epsilon then break end
+		r = nr
+		r2 = nr2
+		p = r + beta * p
+	end
+	return x
+end
+
+
+Image.simpleBlurKernel = Image(3,3,1,'double',{0,1,0, 1,4,1, 0,1,0})/8
+function Image:simpleBlur()
+	return self:kernel(simpleBlurKernel)
 end
 
 return Image
