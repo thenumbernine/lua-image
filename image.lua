@@ -10,7 +10,6 @@
 -- pure luajit ffi
 local Image = require 'image.luajit.image'
 
-
 function Image.iterfunc(s, var)
 	s.x = s.x + 1
 	local sizex, sizey = s.img.width, s.img.height
@@ -29,12 +28,15 @@ function Image:iter()
 	return Image.iterfunc, {x=-1,y=0,img=self}, nil
 end
 
-function Image:clone()
-	local dst = Image(self.width, self.height, self.channels)
-	for x,y in dst:iter() do
-		dst(x,y,self(x,y))
+-- only override if the providing impementation doesn't have its own
+if not Image.clone then
+	function Image:clone()
+		local dst = Image(self.width, self.height, self.channels)
+		for x,y in dst:iter() do
+			dst(x,y,self(x,y))
+		end
+		return dst
 	end
-	return dst
 end
 
 return Image

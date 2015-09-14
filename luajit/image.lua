@@ -150,22 +150,46 @@ function Image:size()
 	return self.width, self.height, self.channels
 end
 
-function Image:__call(x,y,r,g,b,a)
-	local i = self.channels * (x + self.width * y)
-	local pixels = self.buffer
-	local _r = pixels[i+0] / 255
-	local _g = self.channels > 1 and pixels[i+1] / 255
-	local _b = self.channels > 2 and pixels[i+2] / 255
-	local _a = self.channels > 3 and pixels[i+3] / 255
-	if r ~= nil then pixels[i+0] = math.floor(r * 255) end
-	if self.channels > 1 and g ~= nil then pixels[i+1] = math.floor(g * 255) end
-	if self.channels > 2 and b ~= nil then pixels[i+2] = math.floor(b * 255) end
-	if self.channels > 3 and a ~= nil then pixels[i+3] = math.floor(a * 255) end
-	return _r, _g, _b, _a
+-- the common API
+function Image:__call(x, y, ...)
+	local index = self.channels * (x + self.width * y)
+	local oldPixel = {}
+	local newPixel = {...}
+	local info = formatInfo[self.format]
+	for j=0,self.channels-1 do
+		local v = tonumber(self.buffer[index])
+		if info then
+			if info.bias then
+				v = v + info.bias
+			end
+			v = v / info.scale
+		end
+		oldPixel[j+1] = v
+	end
+	if #newPixel > 0 then
+		for j=0,self.channels-1 do
+			local v = tonumber(newPixel[j+1])
+			if info then
+				v = v * info.scale
+				if info.bias then
+					v = v - info.bias
+				end
+			end
+			self.buffer[index+j] = v
+		end
+	end
+	return unpack(oldPixel)
 end
 
 function Image:data()
 	return self.buffer
+end
+-- end common API
+
+function Image:clone()
+	local result = Image(self.width, self.height, self.channels, self.format)
+	ffi.copy(result.buffer, self.buffer, self.width * self.height * self.channels * ffi.sizeof(self.format))
+	return result
 end
 
 for _,info in ipairs{
@@ -388,7 +412,9 @@ function Image.dot(a,b)
 	return sum
 end
 
-function Image:norm() return self:dot(self) end 
+function Image:norm()
+	return self:dot(self)
+end 
 
 --[[
 args:
@@ -399,37 +425,36 @@ args:
 TODO use LinearSolvers
 	- abstract vec() and :norm() and make error tracking optional
 --]]
-function Image:solveConjGrad(args)
+function Image:solveConjugateGradient(args)
 	-- optionally accept a single function as the linear function, use defaults for the rest
 	if type(args) == 'function' then args = {A=args} end
 	
 	local A = assert(args.A, "expected A")
-	local epsilon = args.epsilon or 1e-20
-	local maxiter = args.maxiter or 100
+	local epsilon = args.epsilon or 1e-50	--1e-20
+	local maxiter = args.maxiter or 10000	--100
 	
 	local b = self:clone()
 	local x = b:clone()
 	local r = b - A(x)
 	local r2 = r:norm()
-	print('error',r2)
+--	io.stderr:write(r2,'\n')
 	if r2 < epsilon then return x end
 	local p = r:clone()
 	for iter=1,maxiter do
 		local Ap = A(p)
-		local alpha = r2 / Image.dot(p, Ap)
-		x = x + alpha * p
-		local nr = r - alpha * Ap
+		local alpha = r2 / p:dot(Ap)
+		x = x + p * alpha
+		local nr = r - Ap * alpha
 		local nr2 = nr:norm()
-		print('error',nr2)
+--		io.stderr:write(nr2,'\n')
 		local beta = nr2 / r2
 		if nr2 < epsilon then break end
 		r = nr
 		r2 = nr2
-		p = r + beta * p
+		p = r + p * beta
 	end
 	return x
 end
-
 
 Image.simpleBlurKernel = Image(3,3,1,'double',{0,1,0, 1,4,1, 0,1,0})/8
 function Image:simpleBlur()
