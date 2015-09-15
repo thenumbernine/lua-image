@@ -153,11 +153,11 @@ function Image:save(filename, ...)
 	return original
 end
 
+-- the common API
 function Image:size()
 	return self.width, self.height, self.channels
 end
 
--- the common API
 function Image:__call(x, y, ...)
 	local index = self.channels * (x + self.width * y)
 	local oldPixel = {}
@@ -241,6 +241,41 @@ function Image:split()
 	return unpack(dsts)
 end
 
+-- merges all image channels together
+-- assumes sizes all match
+-- uses the first image's format
+function Image.combine(...)
+	local srcs = {...}
+	assert(#srcs > 0)
+	local width = srcs[1].width
+	local height = srcs[1].height
+	local channels = srcs[1].channels
+	local format = srcs[1].format
+	for i=2,#srcs do
+		assert(width == srcs[i].width)
+		assert(height == srcs[i].height)
+		if srcs[i].format ~= format then
+			srcs[i] = srcs[i]:setFormat(format)
+		end
+		channels = channels + srcs[i].channels
+	end
+	assert(channels > 0)
+	local result = Image(width, height, channels, format)
+	for y=0,height-1 do
+		for x=0,width-1 do
+			local dstch = 0
+			for _,src in ipairs(srcs) do
+				for srcch=0,src.channels-1 do
+					result.buffer[dstch+channels*(x+width*y)] = src.buffer[srcch+src.channels*(x+width*y)]
+					dstch = dstch + 1
+				end
+			end
+			assert(dstch == channels)
+		end
+	end
+	return result
+end
+
 function Image:greyscale()
 	assert(self.channels >= 3)
 	local dst = Image(self.width, self.height, 1, self.format)
@@ -255,37 +290,61 @@ function Image:greyscale()
 	return dst
 end
 
-function Image:gradient()
-	assert(self.channels == 1)
-	local dst = Image(self.width, self.height, 2, self.format)
-	for j=0,self.height-1 do
-		local jm = (j-1+self.height)%self.height
-		local jp = (j+1)%self.height
-		for i=0,self.width-1 do
-			local im = (i-1+self.width)%self.width
-			local ip = (i+1)%self.width
-			local dx = (self.buffer[ip + self.width * j] - self.buffer[im + self.width * j])/2
-			local dy = (self.buffer[i + self.width * jp] - self.buffer[i + self.width * jm])/2
-			dst.buffer[0 + 2 * (i + dst.width * j)] = dx
-			dst.buffer[1 + 2 * (i + dst.width * j)] = dy
+-- args: x, y, width, height
+function Image:copy(args)
+	assert(args.x)
+	assert(args.y)
+	assert(args.width)
+	assert(args.height)
+	local result = Image(args.width, args.height, self.channels, self.format)
+	for y=0,result.height-1 do
+		for x=0,result.width-1 do
+			for ch=0,result.channels-1 do
+				result.buffer[ch+result.channels*(x+result.width*y)] = self.buffer[ch+self.channels*(x+args.x+self.width*(y+args.y))]
+			end
 		end
 	end
-	return dst
+	return result
 end
 
-function Image:divergence()
-	assert(self.channels == 1)
-	local gradX, gradY = self:gradient():split()
-	local gradXX = gradX:gradient():split()
-	local _, gradYY = gradY:gradient():split()
-	return gradXX + gradYY
+-- args: image, x, y
+function Image:paste(args)
+	local pasted = assert(args.image)
+	assert(pasted.channels == self.channels)	-- for now ...
+	local result = self:clone()
+	for y=0,pasted.height-1 do
+		for x=0,pasted.width-1 do
+			for ch=0,pasted.channels-1 do
+				result.buffer[ch+result.channels*(x+args.x+result.width*(y+args.y))] = pasted.buffer[ch+pasted.channels*(x+pasted.width*y)]
+			end
+		end
+	end
+	return result
+end
+
+Image.gradientKernels = {
+	simple = Image(2,1,1,'double',{-1,1}),
+	Sobel = Image(3,3,1,'double',{-1,0,1,-2,0,2,-1,0,1})/4,
+	Scharr = Image(3,3,1,'double',{-3,0,3,-10,0,10,-3,0,3})/16,
+	-- TODO Gaussian gradient
+	-- TODO make boundary modulo optional
+}
+function Image:gradient(kernelName, offsetX, offsetY)
+	if not kernelName then kernelName = 'Sobel' end
+	local kernel = assert(self.gradientKernels[kernelName], "could not find gradient "..tostring(kernelName))
+	-- TODO cache transposed kernels?
+	offsetX = (offsetX or 0) - math.floor(kernel.width/2)
+	offsetY = (offsetY or 0) - math.floor(kernel.height/2)
+	return
+		self:kernel(kernel, false, offsetX, offsetY),
+		self:kernel(kernel:transpose(), false, offsetY, offsetX)
 end
 
 function Image:curvature()
 	assert(self.channels == 1)
-	local gradX, gradY = self:gradient():split()
-	local gradXX, gradXY = gradX:gradient():split()
-	local gradYX, gradYY = gradY:gradient():split()
+	local gradX, gradY = self:gradient()
+	local gradXX, gradXY = gradX:gradient()
+	local gradYX, gradYY = gradY:gradient()
 	local dst = Image(self.width, self.height, 1, self.format)
 	for index=0,self.width*self.height-1 do
 		dst.buffer[index] = (gradXX.buffer[index] * gradY.buffer[index]^2 - 2 * gradXY.buffer[index] * gradX.buffer[index] * gradY.buffer[index] + gradYY.buffer[index] * gradX.buffer[index]^2)
@@ -297,8 +356,8 @@ end
 function Image:curl()
 	assert(self.channels == 2)
 	local imgX, imgY = self:split()
-	local _, dy_dx = imgX:gradient():split()
-	local dx_dy = imgY:gradient():split()
+	local _, dy_dx = imgX:gradient()
+	local dx_dy = imgY:gradient()
 	return dy_dx - dx_dy
 end
 
@@ -351,18 +410,21 @@ function Image:blur()
 	return dst
 end
 
-function Image:kernel(kernel)
+function Image:kernel(kernel, normalize, ofx, ofy)
 	assert(kernel.channels == 1)
 	local dst = Image(self.width, self.height, self.channels, self.format)
-	
-	local normalization = 0
-	for y=0,kernel.height-1 do
-		for x=0,kernel.width-1 do
-			local kernelValue = kernel.buffer[x+kernel.width*y]
-			normalization = normalization + kernelValue
+
+	local normalization = 1
+	if normalize then
+		normalization = 0
+		for y=0,kernel.height-1 do
+			for x=0,kernel.width-1 do
+				local kernelValue = kernel.buffer[x+kernel.width*y]
+				normalization = normalization + kernelValue
+			end
 		end
+		normalization = 1 / normalization 
 	end
-	normalization = 1 / normalization 
 
 	for j=0,self.height-1 do
 		for i=0,self.width-1 do
@@ -370,8 +432,8 @@ function Image:kernel(kernel)
 				local sum = 0
 				for y=0,kernel.height-1 do
 					for x=0,kernel.width-1 do
-						local sx = (i + x + self.width) % self.width
-						local sy = (j + y + self.height) % self.height
+						local sx = (i + x + ofx + self.width) % self.width
+						local sy = (j + y + ofy + self.height) % self.height
 						local kernelValue = kernel.buffer[x+kernel.width*y]
 						sum = sum + kernelValue * self.buffer[ch + self.channels * (sx + self.width * sy)]
 					end
@@ -413,7 +475,7 @@ function Image:gaussianBlur(size, sigma)
 	-- separate kernels and apply individually for performance's sake
 	local xKernel = Image.gaussianKernel(sigma, 2*size+1, 1)
 	local yKernel = xKernel:transpose()
-	return self:kernel(xKernel):kernel(yKernel)
+	return self:kernel(xKernel, true, -size, 0):kernel(yKernel, true, 0, -size)
 end
 
 function Image.dot(a,b)
@@ -431,6 +493,7 @@ function Image:norm()
 	return self:dot(self)
 end 
 
+-- 'self' should be the solution vector (b)
 function Image:solveConjugateGradient(args)
 	-- optionally accept a single function as the linear function, use defaults for the rest
 	if type(args) == 'function' then args = {A=args} end
@@ -439,6 +502,7 @@ function Image:solveConjugateGradient(args)
 	return ConjugateGradient{
 		A = args.A,
 		b = self,
+		x0 = args.x0,
 		clone = Image.clone,
 		dot = Image.dot,
 		norm = Image.norm,
@@ -456,6 +520,7 @@ function Image:solveConjugateResidual(args)
 	return ConjugateResidual{
 		A = args.A,
 		b = self,
+		x0 = args.x0,
 		clone = Image.clone,
 		dot = Image.dot,
 		norm = Image.norm,
@@ -467,7 +532,13 @@ end
 
 Image.simpleBlurKernel = Image(3,3,1,'double',{0,1,0, 1,4,1, 0,1,0})/8
 function Image:simpleBlur()
-	return self:kernel(self.simpleBlurKernel)
+	return self:kernel(self.simpleBlurKernel, false, -1, -1)
+end
+
+-- TODO offer multiple options
+Image.divergenceKernel = Image(3,3,1,'double',{0,1,0,1,-4,1,0,1,0})
+function Image:divergence()
+	return self:kernel(self.divergenceKernel, false, -1, -1)
 end
 
 return Image
