@@ -474,8 +474,9 @@ function Image:gaussianBlur(size, sigma)
 	sigma = sigma or size / 3
 	-- separate kernels and apply individually for performance's sake
 	local xKernel = Image.gaussianKernel(sigma, 2*size+1, 1)
+		:normalize()
 	local yKernel = xKernel:transpose()
-	return self:kernel(xKernel, true, -size, 0):kernel(yKernel, true, 0, -size)
+	return self:kernel(xKernel, false, -size, 0):kernel(yKernel, false, 0, -size)
 end
 
 function Image.dot(a,b)
