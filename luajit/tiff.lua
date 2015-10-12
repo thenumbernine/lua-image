@@ -1,10 +1,12 @@
+local Loader = require 'image.luajit.loader'
+local class = require 'ext.class'
 local ffi = require 'ffi'
 local tiff = require 'ffi.tiff'
 local gcmem = require 'ext.gcmem'
 
-local exports = {}
+local TIFFLoader = class(Loader)
 
-exports.load = function(filename)
+function TIFFLoader:load(filename)
 	assert(filename, "expected filename")
 
 	tiff.TIFFSetWarningHandler(nil)
@@ -39,7 +41,7 @@ exports.load = function(filename)
 end
 
 -- assumes RGB data
-exports.save = function(args)
+function TIFFLoader:save(args)
 	-- args:
 	local filename = assert(args.filename, "expected filename")
 	local width = assert(args.width, "expected width")
@@ -72,5 +74,5 @@ exports.save = function(args)
 	tiff.TIFFClose(fp)
 end
 
-return exports
+return TIFFLoader
 

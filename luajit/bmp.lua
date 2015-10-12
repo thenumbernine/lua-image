@@ -2,6 +2,8 @@
 NOTICE the BMP save/load operates as BGR
 I'm also saving images upside-down ... but I'm working with flipped buffers so it's okay?
 --]]
+local Loader = require 'image.luajit.loader'
+local class = require 'ext.class'
 local ffi = require 'ffi'
 local gcmem = require 'ext.gcmem'
 require 'ffi.c.stdio'
@@ -43,9 +45,9 @@ typedef struct tagBITMAPINFOHEADER BITMAPINFOHEADER;
 #pragma pack(0)
 ]]
 
-local exports = {}
+local BMPLoader = class(Loader)
 
-exports.load = function(filename)
+function BMPLoader:load(filename)
 	local file = ffi.C.fopen(filename, 'rb')
 	if file == nil then error("failed to open file "..filename.." for reading") end
 
@@ -123,7 +125,7 @@ exports.load = function(filename)
 	}
 end
 
-exports.save = function(args)
+function BMPLoader:save(args)
 	local filename = assert(args.filename, "expected filename")
 	local width = assert(args.width, "expected width")
 	local height = assert(args.height, "expected height")
@@ -182,5 +184,5 @@ exports.save = function(args)
 	ffi.C.fclose(file)
 end
 
-return exports
+return BMPLoader 
 

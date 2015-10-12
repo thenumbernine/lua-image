@@ -1,14 +1,16 @@
+local Loader = require 'image.luajit.loader'
+local class = require 'ext.class'
 local ffi = require 'ffi'
 require 'ffi.c.string'	--memcpy
 local png = require 'ffi.png'
 local gcmem = require 'ext.gcmem'
 
-local exports = {}
+local PNGLoader = class(Loader)
 
 -- TODO something that adapts better
 local libpngVersion = "1.6.10"
 
-exports.load = function(filename)
+function PNGLoader:load(filename)
 	assert(filename, "expected filename")
 	return select(2, assert(xpcall(function()
 		local header = gcmem.new('char',8)	-- 8 is the maximum size that can be checked
@@ -85,7 +87,7 @@ exports.load = function(filename)
 	end)))
 end
 
-exports.save = function(args)
+function PNGLoader:save(args)
 	-- args:
 	local filename = assert(args.filename, "expected filename")
 	local width = assert(args.width, "expected width")
@@ -119,7 +121,7 @@ exports.save = function(args)
 		({
 			[3] = png.PNG_COLOR_TYPE_RGB,
 			[4] = png.PNG_COLOR_TYPE_RGB_ALPHA,
-		})[channels] or error("got unknown channels"),
+		})[channels] or error("got unknown channels "..tostring(channels)),
 		png.PNG_INTERLACE_NONE,
 		png.PNG_COMPRESSION_TYPE_BASE,
 		png.PNG_FILTER_TYPE_BASE)
@@ -138,5 +140,4 @@ exports.save = function(args)
 	ffi.C.fclose(fp)
 end
 
-return exports
-
+return PNGLoader

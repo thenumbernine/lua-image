@@ -1,9 +1,11 @@
+local Loader = require 'image.luajit.loader'
+local class = require 'ext.class'
 local ffi = require 'ffi'
 require 'ffi.c.stdio'	-- fopen
 local jpeg = require 'ffi.jpeg'
 local gcmem = require 'ext.gcmem'
 
-local exports = {}
+local JPEGLoader = class(Loader)
 
 ffi.cdef[[
 struct my_error_mgr {
@@ -18,7 +20,7 @@ local errorExt = function(cinfo)
 end
 local errorExitPtr = ffi.cast('void(*)(j_common_ptr)', errorExit)
 
-exports.load = function(filename)
+function JPEGLoader:load(filename)
 	local cinfo = gcmem.new('struct jpeg_decompress_struct', 1)
 	local jerr = gcmem.new('struct my_error_mgr', 1)
 
@@ -67,7 +69,7 @@ exports.load = function(filename)
 	}
 end
 
-exports.save = function(args)
+function JPEGLoader:save(args)
 	-- args:
 	local filename = assert(args.filename, "expected filename")
 	local width = assert(args.width, "expected width")
@@ -117,4 +119,4 @@ exports.save = function(args)
   	jpeg.jpeg_destroy_compress(cinfo)
 end
 
-return exports
+return JPEGLoader

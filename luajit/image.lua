@@ -6,29 +6,35 @@ so this needs to be changed to work with RGBA too
 local ffi = require 'ffi'
 local class = require 'ext.class'
 local gcmem = require 'ext.gcmem'
+local io = require 'ext.io'	-- getfileext
 
 local Image = class()
 
 Image.loaders = {
-	png = require 'image.luajit.png',
-	bmp = require 'image.luajit.bmp',
-	tif = require 'image.luajit.tiff',
-	tiff = require 'image.luajit.tiff',
-	jpg = require 'image.luajit.jpeg',
-	jpeg = require 'image.luajit.jpeg',
+	bmp = 'image.luajit.bmp',
+	fits = 'image.luajit.fits',
+	jpg = 'image.luajit.jpeg',
+	jpeg = 'image.luajit.jpeg',
+	png = 'image.luajit.png',
+	tif = 'image.luajit.tiff',
+	tiff = 'image.luajit.tiff',
 }
+
+local function getLoaderForFilename(filename)
+	local ext = assert(select(2, io.getfileext(filename)):lower(), "failed to get extension for filename "..tostring(filename))
+	local loaderRequire = assert(Image.loaders[ext], "failed to find loader class for extension "..ext.." for filename "..filename)
+	local loaderClass = require(loaderRequire)
+	local loader = loaderClass()
+	return loader
+end
 
 function Image:init(width,height,channels,format,generator)
 	channels = channels or 4
 	format = format or 'double'
 	if type(width) == 'string' then
 		local filename = width
-		local ext = filename:match'.*%.(.-)$'
-		local loader = ext and self.loaders[ext:lower()]
-		if not loader then
-			error("I don't know how to load a file with ext "..tostring(ext))
-		end
-		local result = loader.load(filename)
+		local loader = getLoaderForFilename(filename)
+		local result = loader:load(filename)
 		self.buffer = result.data
 		self.width = result.width
 		self.height = result.height
@@ -135,22 +141,23 @@ function Image:clamp(min,max)
 end
 
 function Image:save(filename, ...)
-	local original = self
-	self = self:rgb():clamp(0,1):setFormat'unsigned char'
-	assert(self.channels == 3, "expected only 3 channels")
-	local ext = filename:match'.*%.(.-)$'
-	local loader = ext and self.loaders[ext:lower()]
-	if not loader then
-		error("I don't know how to load a file with ext "..tostring(ext))
-	end
-	loader.save{
+
+	local loader = getLoaderForFilename(filename)
+
+	-- may or may not be the same object ...
+	local converted = loader:prepareImage(self)	
+	
+	loader:save{
 		filename = filename,
-		width = self.width,
-		height = self.height,
-		channels = self.channels,
-		data = self.buffer,
+		width = converted.width,
+		height = converted.height,
+		channels = converted.channels,
+		format = converted.format,
+		data = converted.buffer,
 	}
-	return original
+	
+	-- returns self solely for chaining commands
+	return self 
 end
 
 -- the common API
