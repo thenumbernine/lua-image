@@ -2,7 +2,7 @@ local Loader = require 'image.luajit.loader'
 local class = require 'ext.class'
 local ffi = require 'ffi'
 require 'ffi.c.string'
-local fits = require 'ffi.cfitsio'
+local fits = require 'ffi.fitsio'
 local gcmem = require 'ext.gcmem'
 
 local FITSLoader = class(Loader)
