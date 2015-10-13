@@ -9,7 +9,7 @@ local FITSLoader = class(Loader)
 
 -- overload the parent class functionality
 -- don't clamp or change format
-function Loader:prepareImage(image)
+function FITSLoader:prepareImage(image)
 	return image
 end
 
