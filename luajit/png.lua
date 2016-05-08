@@ -8,7 +8,7 @@ local gcmem = require 'ext.gcmem'
 local PNGLoader = class(Loader)
 
 -- TODO something that adapts better
-local libpngVersion = "1.6.10"
+local libpngVersion = "1.7.0beta66"
 
 function PNGLoader:load(filename)
 	assert(filename, "expected filename")
