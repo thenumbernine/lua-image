@@ -10,6 +10,22 @@ local PNGLoader = class(Loader)
 -- TODO something that adapts better
 local libpngVersion = "1.7.0beta66"
 
+-- replace the base loader which forced rgb
+-- instead, allow for rgba
+function PNGLoader:prepareImage(image)
+	if image.channels ~= 3 and image.channels ~= 4 then
+		image = image:rgb()
+	end
+	if image.format == 'float' or image.format == 'double' then
+		image = image:clamp(0,1)
+	end
+	if image.format ~= 'unsigned char' then
+		image = image:setFormat'unsigned char'
+	end
+	assert(image.channels == 3 or image.channels == 4, "expected 3 or 4 channels")
+	return image
+end
+
 function PNGLoader:load(filename)
 	assert(filename, "expected filename")
 	return select(2, assert(xpcall(function()
