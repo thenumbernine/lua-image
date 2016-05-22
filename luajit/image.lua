@@ -538,6 +538,25 @@ function Image:solveConjugateResidual(args)
 	}
 end
 
+function Image:solveGMRes(args)
+	if type(args) == 'function' then args = {A=args} end
+	local GMRes = require 'LinearSolvers.GeneralizedMinimalResidual'
+	local volume = self.width * self.height * self.channels
+	return GMRes{
+		A = args.A,
+		b = self,
+		x0 = args.x0,
+		clone = Image.clone,
+		dot = Image.dot,
+		norm = Image.norm,
+		--MInv = function(x) return preconditioner inverse applied to x end,
+		errorCallback = function(err) io.stderr:write(err,'\n') end,
+		epsilon = args.epsilon,
+		maxiter = args.maxiter or 10 * volume,
+		restart = args.restart or volume, 
+	}
+end
+
 Image.simpleBlurKernel = Image(3,3,1,'double',{0,1,0, 1,4,1, 0,1,0})/8
 function Image:simpleBlur()
 	return self:kernel(self.simpleBlurKernel, false, -1, -1)
