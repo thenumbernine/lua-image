@@ -568,4 +568,22 @@ function Image:divergence()
 	return self:kernel(self.divergenceKernel, false, -1, -1)
 end
 
+-- should this invert all channels, or just up to the first three?
+-- first three ...
+function Image:invert()
+	local info = formatInfo[self.format]
+	local scale = info and info.scale or 1
+	local bias = info and info.bias or 0
+	return Image(self.width, self.height, self.channels, self.format, function(x,y)
+		local pixel = {}
+		for ch=1,self.channels do
+			pixel[ch] = self.buffer[ch-1 + self.channels * (x + self.width * y)]
+			if ch <= 3 then
+				pixel[ch] = (scale - (tonumber(pixel[ch]) + bias)) - scale
+			end
+		end
+		return table.unpack(pixel)
+	end)
+end
+
 return Image
