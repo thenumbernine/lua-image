@@ -5,14 +5,17 @@ require 'ffi.c.string'	--memcpy
 local png = require 'ffi.png'
 local gcmem = require 'ext.gcmem'
 
-local PNGLoader = class(Loader)
+local PNG = class(Loader)
 
 -- TODO something that adapts better
-local libpngVersion = "1.7.0beta66"
+-- this is the malkia ufo png.dll version on win32:
+--PNG.libpngVersion = "1.5.13"
+-- this is the malkia ufo libpng.dylib version on osx:
+PNG.libpngVersion = "1.7.0beta66"
 
 -- replace the base loader which forced rgb
 -- instead, allow for rgba
-function PNGLoader:prepareImage(image)
+function PNG:prepareImage(image)
 	if image.channels ~= 3 and image.channels ~= 4 then
 		image = image:rgb()
 	end
@@ -26,7 +29,7 @@ function PNGLoader:prepareImage(image)
 	return image
 end
 
-function PNGLoader:load(filename)
+function PNG:load(filename)
 	assert(filename, "expected filename")
 	return select(2, assert(xpcall(function()
 		local header = gcmem.new('char',8)	-- 8 is the maximum size that can be checked
@@ -43,7 +46,7 @@ function PNGLoader:load(filename)
 		end
 
 		-- initialize stuff
-		local png_ptr = png.png_create_read_struct(libpngVersion, nil, nil, nil)
+		local png_ptr = png.png_create_read_struct(self.libpngVersion, nil, nil, nil)
 
 		if png_ptr == nil then
 			error("[read_png_file] png_create_read_struct failed")
@@ -103,7 +106,7 @@ function PNGLoader:load(filename)
 	end)))
 end
 
-function PNGLoader:save(args)
+function PNG:save(args)
 	-- args:
 	local filename = assert(args.filename, "expected filename")
 	local width = assert(args.width, "expected width")
@@ -115,7 +118,7 @@ function PNGLoader:save(args)
 	if fp == nil then error("failed to open file "..filename.." for writing") end
 
 	-- initialize stuff
-	local png_ptr = png.png_create_write_struct(libpngVersion, nil, nil, nil)
+	local png_ptr = png.png_create_write_struct(self.libpngVersion, nil, nil, nil)
 
 	if png_ptr == nil then
 		error "[write_png_file] png_create_write_struct failed"
@@ -156,4 +159,4 @@ function PNGLoader:save(args)
 	ffi.C.fclose(fp)
 end
 
-return PNGLoader
+return PNG

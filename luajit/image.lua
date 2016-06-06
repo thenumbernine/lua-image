@@ -7,6 +7,7 @@ local ffi = require 'ffi'
 local class = require 'ext.class'
 local gcmem = require 'ext.gcmem'
 local io = require 'ext.io'	-- getfileext
+local unpack = unpack or table.unpack
 
 local Image = class()
 
@@ -303,11 +304,17 @@ function Image:copy(args)
 	assert(args.y)
 	assert(args.width)
 	assert(args.height)
-	local result = Image(args.width, args.height, self.channels, self.format)
+	local result = Image(math.floor(args.width), math.floor(args.height), self.channels, self.format)
 	for y=0,result.height-1 do
 		for x=0,result.width-1 do
 			for ch=0,result.channels-1 do
-				result.buffer[ch+result.channels*(x+result.width*y)] = self.buffer[ch+self.channels*(x+args.x+self.width*(y+args.y))]
+				local sx = x + math.floor(args.x)
+				local sy = y + math.floor(args.y)
+				if sx >= 0 and sy >= 0 and sx < self.width and sy < self.height then
+					result.buffer[ch+result.channels*(x+result.width*y)] = self.buffer[ch+self.channels*(sx+self.width*sy)]
+				else
+					result.buffer[ch+result.channels*(x+result.width*y)] = 0
+				end
 			end
 		end
 	end
@@ -390,8 +397,14 @@ end
 
 function Image:map(map)
 	local dst = Image(self.width, self.height, self.channels, self.format)
-	for index=0,self.width*self.height*self.channels-1 do
-		dst.buffer[index] = map(self.buffer[index])
+	local index = 0
+	for y=0,self.height-1 do
+		for x=0,self.width-1 do
+			for ch=0,self.channels-1 do
+				dst.buffer[index] = map(self.buffer[index],x,y,ch)
+				index = index + 1
+			end
+		end
 	end
 	return dst
 end
@@ -582,7 +595,41 @@ function Image:invert()
 				pixel[ch] = (scale - (tonumber(pixel[ch]) + bias)) - scale
 			end
 		end
-		return table.unpack(pixel)
+		return unpack(pixel)
+	end)
+end
+
+--[[
+resize options:
+nearest 
+linear
+--]]
+function Image:resize(newx, newy, method)
+	newx = math.floor(newx)
+	newy = math.floor(newy)
+	method = method or 'nearest'
+	return Image(newx, newy, self.channels, self.format, function(x,y)
+		local sxmin = math.floor(x*self.width/newx)
+		local sxmax = math.floor((x+1)*self.width/newx)
+		local symin = math.floor(y*self.height/newy)
+		local symax = math.floor((y+1)*self.height/newy)
+		sxmax = math.max(sxmax, sxmin+1)
+		symax = math.max(symax, symin+1)
+		local pixel = {}
+		for ch=0,self.channels-1 do
+			pixel[ch+1] = 0
+			local total = 0
+			for sy=symin,symax-1 do
+				for sx=sxmin,sxmax-1 do
+					pixel[ch+1] = self.buffer[ch+self.channels*(sx+self.width*sy)] + pixel[ch+1]
+					total = total + 1
+				end
+			end
+			if total>0 then
+				pixel[ch+1] = pixel[ch+1] / total
+			end
+		end
+		return unpack(pixel)
 	end)
 end
 
