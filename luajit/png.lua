@@ -8,10 +8,13 @@ local gcmem = require 'ext.gcmem'
 local PNG = class(Loader)
 
 -- TODO something that adapts better
--- this is the malkia ufo png.dll version on win32:
---PNG.libpngVersion = "1.5.13"
--- this is the malkia ufo libpng.dylib version on osx:
-PNG.libpngVersion = "1.7.0beta66"
+if ffi.os == 'Windows' then
+	-- this is the malkia ufo png.dll version on win32:
+	PNG.libpngVersion = "1.5.13"
+else
+	-- this is the malkia ufo libpng.dylib version on osx:
+	PNG.libpngVersion = "1.7.0beta66"
+end
 
 -- replace the base loader which forced rgb
 -- instead, allow for rgba
