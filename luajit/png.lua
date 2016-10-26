@@ -11,9 +11,9 @@ local PNG = class(Loader)
 if ffi.os == 'Windows' then
 	-- the malkia ufo header says 1.4.19 beta 
 	-- but 1.5.13 works ...
-	--PNG.libpngVersion = "1.5.13"
+	PNG.libpngVersion = "1.5.13"
 	-- but I'm going to upgrade to 1.6.25
-	PNG.libpngVersion = "1.6.25"
+	--PNG.libpngVersion = "1.6.25"
 elseif ffi.os == 'OSX' then
 	-- this is the malkia ufo libpng.dylib version on osx:
 	PNG.libpngVersion = "1.7.0beta66"
