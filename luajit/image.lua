@@ -519,11 +519,11 @@ function Image:solveConjugateGradient(args)
 	-- optionally accept a single function as the linear function, use defaults for the rest
 	if type(args) == 'function' then args = {A=args} end
 
-	local ConjugateGradient = require 'LinearSolvers.ConjugateGradient'
-	return ConjugateGradient{
+	local conjgrad = require 'solver.conjgrad'
+	return conjgrad{
 		A = args.A,
 		b = self,
-		x0 = args.x0,
+		x = args.x,
 		clone = Image.clone,
 		dot = Image.dot,
 		norm = Image.norm,
@@ -537,11 +537,11 @@ function Image:solveConjugateResidual(args)
 	-- optionally accept a single function as the linear function, use defaults for the rest
 	if type(args) == 'function' then args = {A=args} end
 
-	local ConjugateResidual = require 'LinearSolvers.ConjugateResidual'
-	return ConjugateResidual{
+	local conjres = require 'solver.conjres'
+	return conjres{
 		A = args.A,
 		b = self,
-		x0 = args.x0,
+		x = args.x,
 		clone = Image.clone,
 		dot = Image.dot,
 		norm = Image.norm,
@@ -553,12 +553,12 @@ end
 
 function Image:solveGMRes(args)
 	if type(args) == 'function' then args = {A=args} end
-	local GMRes = require 'LinearSolvers.GeneralizedMinimalResidual'
+	local gmres = require 'solver.gmres'
 	local volume = self.width * self.height * self.channels
-	return GMRes{
+	return gmres{
 		A = args.A,
 		b = self,
-		x0 = args.x0,
+		x = args.x,
 		clone = Image.clone,
 		dot = Image.dot,
 		norm = Image.norm,
