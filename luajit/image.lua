@@ -515,7 +515,7 @@ function Image:norm()
 end 
 
 -- 'self' should be the solution vector (b)
-function Image:solveConjugateGradient(args)
+function Image:solveConjGrad(args)
 	-- optionally accept a single function as the linear function, use defaults for the rest
 	if type(args) == 'function' then args = {A=args} end
 
@@ -533,7 +533,7 @@ function Image:solveConjugateGradient(args)
 	}
 end
 
-function Image:solveConjugateResidual(args)
+function Image:solveConjRes(args)
 	-- optionally accept a single function as the linear function, use defaults for the rest
 	if type(args) == 'function' then args = {A=args} end
 
