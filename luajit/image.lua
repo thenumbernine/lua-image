@@ -527,7 +527,7 @@ function Image:solveConjGrad(args)
 		clone = Image.clone,
 		dot = Image.dot,
 		norm = Image.norm,
-		errorCallback = function(err) io.stderr:write(err,'\n') end,
+		errorCallback = args.errorCallback,
 		epsilon = args.epsilon,
 		maxiter = args.maxiter,
 	}
@@ -545,7 +545,7 @@ function Image:solveConjRes(args)
 		clone = Image.clone,
 		dot = Image.dot,
 		norm = Image.norm,
-		errorCallback = function(err) io.stderr:write(err,'\n') end,
+		errorCallback = args.errorCallback,
 		epsilon = args.epsilon,
 		maxiter = args.maxiter,
 	}
@@ -563,7 +563,7 @@ function Image:solveGMRes(args)
 		dot = Image.dot,
 		norm = Image.norm,
 		--MInv = function(x) return preconditioner inverse applied to x end,
-		errorCallback = function(err) io.stderr:write(err,'\n') end,
+		errorCallback = args.errorCallback,
 		epsilon = args.epsilon,
 		maxiter = args.maxiter or 10 * volume,
 		restart = args.restart or volume, 
