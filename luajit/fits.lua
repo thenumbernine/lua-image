@@ -1,3 +1,10 @@
+--[[
+Notice about the FITS IO:
+
+It loads and saves in planar mode.
+Which means technically it shouldn't have 3 channels.
+If you try to save a 3-channel image via FITS, you'll get interleaved garbage.
+--]]
 local Loader = require 'image.luajit.loader'
 local class = require 'ext.class'
 local io = require 'ext.io'
@@ -114,8 +121,11 @@ function FITSLoader:save(args)
 	if io.fileexists(filename) then os.remove(filename) end
 
 	local status = gcmem.new('int', 1)
-	
+	status[0] = 0
+
 	local fitsFilePtr = gcmem.new('fitsfile *', 1)
+	fitsFilePtr[0] = nil
+	
 	fits.ffinit(fitsFilePtr, filename, status)
 	assert(status[0] == 0, "ffinit failed with " .. status[0])
 
