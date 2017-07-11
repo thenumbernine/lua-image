@@ -15,8 +15,7 @@ if ffi.os == 'Windows' then
 	-- but I'm going to upgrade to 1.6.25
 	--PNG.libpngVersion = "1.6.25"
 elseif ffi.os == 'OSX' then
-	-- this is the malkia ufo libpng.dylib version on osx:
-	PNG.libpngVersion = "1.7.0beta66"
+	PNG.libpngVersion = "1.5.13"
 elseif ffi.os == 'Linux' then
 	PNG.libpngVersion = "1.6.20"
 end
