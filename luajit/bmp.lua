@@ -86,7 +86,7 @@ function BMPLoader:load(filename)
 
 	assert(infoHeader[0].biBitCount == 24 or infoHeader[0].biBitCount == 32, "only supports 24-bpp or 32-bpp images")
 	channels = infoHeader[0].biBitCount/8
-	assert(infoHeader[0].biCompression == 0, "only supports uncompressed images")
+	assert(infoHeader[0].biCompression == 0, "only supports uncompressed images, found compression method "..infoHeader[0].biCompression)
 
 	ffi.C.fseek(file, fileHeader[0].bfOffBits, ffi.C.SEEK_SET)
 
