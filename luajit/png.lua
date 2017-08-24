@@ -5,24 +5,25 @@ require 'ffi.c.string'	--memcpy
 local png = require 'ffi.png'
 local gcmem = require 'ext.gcmem'
 
-local PNG = class(Loader)
+local PNGLoader = class(Loader)
 
 -- TODO something that adapts better
 if ffi.os == 'Windows' then
 	-- the malkia ufo header says 1.4.19 beta 
-	-- but 1.5.13 works ...
-	PNG.libpngVersion = "1.5.13"
-	-- but I'm going to upgrade to 1.6.25
-	--PNG.libpngVersion = "1.6.25"
+	-- but 1.5.13 works 
+	-- ... or does it? now I'm getting "libpng error: Read Error"
+	--PNGLoader.libpngVersion = "1.5.13"
+	-- but I'm going to upgrade
+	PNGLoader.libpngVersion = "1.6.31"
 elseif ffi.os == 'OSX' then
-	PNG.libpngVersion = "1.5.13"
+	PNGLoader.libpngVersion = "1.5.13"
 elseif ffi.os == 'Linux' then
-	PNG.libpngVersion = "1.6.20"
+	PNGLoader.libpngVersion = "1.6.20"
 end
 
 -- replace the base loader which forced rgb
 -- instead, allow for rgba
-function PNG:prepareImage(image)
+function PNGLoader:prepareImage(image)
 	if image.channels ~= 3 and image.channels ~= 4 then
 		image = image:rgb()
 	end
@@ -36,7 +37,7 @@ function PNG:prepareImage(image)
 	return image
 end
 
-function PNG:load(filename)
+function PNGLoader:load(filename)
 	assert(filename, "expected filename")
 	return select(2, assert(xpcall(function()
 		local header = gcmem.new('char',8)	-- 8 is the maximum size that can be checked
@@ -49,7 +50,7 @@ function PNG:load(filename)
 
 		ffi.C.fread(header, 1, 8, fp)
 		if png.png_sig_cmp(header, 0, 8) ~= 0 then
-			error(string.format("[read_png_file] File %s is not recognized as a PNG file", filename))
+			error(string.format("[read_png_file] File %s is not recognized as a PNGLoader file", filename))
 		end
 
 		-- initialize stuff
@@ -113,7 +114,7 @@ function PNG:load(filename)
 	end)))
 end
 
-function PNG:save(args)
+function PNGLoader:save(args)
 	-- args:
 	local filename = assert(args.filename, "expected filename")
 	local width = assert(args.width, "expected width")
@@ -166,4 +167,4 @@ function PNG:save(args)
 	ffi.C.fclose(fp)
 end
 
-return PNG
+return PNGLoader

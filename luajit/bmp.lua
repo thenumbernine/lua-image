@@ -185,4 +185,3 @@ function BMPLoader:save(args)
 end
 
 return BMPLoader 
-
