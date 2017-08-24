@@ -24,9 +24,11 @@ function TIFFLoader:load(filename)
 	local height = readtag('TIFFTAG_IMAGELENGTH', 'uint32_t')
 	local bitsPerSample = readtag('TIFFTAG_BITSPERSAMPLE', 'uint16_t')
 	local samplesPerPixel = readtag('TIFFTAG_SAMPLESPERPIXEL', 'uint16_t')
-	local sampleFormat = readtag('TIFFTAG_SAMPLEFORMAT', 'uint16_t')
+--	local sampleFormat = readtag('TIFFTAG_SAMPLEFORMAT', 'uint16_t')
 	local pixelSize = math.floor(bitsPerSample / 8 * samplesPerPixel)
-	if pixelSize == 0 then error("unsupported bitsPerSample="..bitsPerSample.." sampleFormat="..sampleFormat) end
+	if pixelSize == 0 then 
+		error("unsupported bitsPerSample="..bitsPerSample)--.." sampleFormat="..sampleFormat) 
+	end
 	
 	local data = gcmem.new('unsigned char', width * height * pixelSize)
 	local ptr = data
