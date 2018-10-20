@@ -2,8 +2,19 @@ local Loader = require 'image.luajit.loader'
 local class = require 'ext.class'
 local ffi = require 'ffi'
 require 'ffi.c.stdio'	-- fopen
+require 'ffi.c.setjmp'	-- jmp_buf ... hmm, can I use something else?  something that won't break Lua?
 local jpeg = require 'ffi.jpeg'
 local gcmem = require 'ext.gcmem'
+
+--[[ debugging
+local oldjpeg = jpeg
+local jpeg = setmetatable({}, {
+	__index = function(t,k)
+		print(debug.traceback())
+		return oldjpeg[k]
+	end,
+})
+--]]
 
 local JPEGLoader = class(Loader)
 
