@@ -10,11 +10,12 @@ local PNGLoader = class(Loader)
 -- TODO something that adapts better
 if ffi.os == 'Windows' then
 	-- the malkia ufo header says 1.4.19 beta 
+	--PNGLoader.libpngVersion = "1.4.19"
 	-- but 1.5.13 works 
 	-- ... or does it? now I'm getting "libpng error: Read Error"
-	--PNGLoader.libpngVersion = "1.5.13"
+	PNGLoader.libpngVersion = "1.5.13"
 	-- but I'm going to upgrade
-	PNGLoader.libpngVersion = "1.6.31"
+	--PNGLoader.libpngVersion = "1.6.31"
 elseif ffi.os == 'OSX' then
 	PNGLoader.libpngVersion = "1.5.13"
 elseif ffi.os == 'Linux' then
@@ -37,9 +38,19 @@ function PNGLoader:prepareImage(image)
 	return image
 end
 
+local errorCallback = ffi.cast('png_error_ptr', function(struct, msg)
+	print('png error:', ffi.string(msg))
+end)
+
+local warningCallback = ffi.cast('png_error_ptr', function(struct, msg)
+	print('png warning:', ffi.string(msg))
+end)
+
 function PNGLoader:load(filename)
 	assert(filename, "expected filename")
 	return select(2, assert(xpcall(function()
+			
+		
 		local header = gcmem.new('char',8)	-- 8 is the maximum size that can be checked
 
 		-- open file and test for it being a png
@@ -54,7 +65,7 @@ function PNGLoader:load(filename)
 		end
 
 		-- initialize stuff
-		local png_ptr = png.png_create_read_struct(self.libpngVersion, nil, nil, nil)
+		local png_ptr = png.png_create_read_struct(self.libpngVersion, nil, errorCallback, warningCallback)
 
 		if png_ptr == nil then
 			error("[read_png_file] png_create_read_struct failed")
