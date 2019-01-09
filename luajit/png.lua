@@ -85,8 +85,10 @@ function PNGLoader:load(filename)
 		local height = png.png_get_image_height(png_ptr, info_ptr)
 		local colorType = png.png_get_color_type(png_ptr, info_ptr)
 		local bit_depth = png.png_get_bit_depth(png_ptr, info_ptr)
+		local colorTypePalette = png.PNG_COLOR_MASK_PALETTE + png.PNG_COLOR_MASK_COLOR
 		if colorType ~= png.PNG_COLOR_TYPE_RGB
 		and colorType ~= png.PNG_COLOR_TYPE_RGB_ALPHA
+		and colorType ~= colorTypePalette 
 		then
 			error("expected colorType to be PNG_COLOR_TYPE_RGB or PNG_COLOR_TYPE_RGB_ALPHA, got "..colorType)
 		end
@@ -103,6 +105,7 @@ function PNGLoader:load(filename)
 		local channels = ({
 				[png.PNG_COLOR_TYPE_RGB] = 3,
 				[png.PNG_COLOR_TYPE_RGB_ALPHA] = 4,
+				[colorTypePalette] = 1,
 			})[colorType] or error('got unknown colorType')
 		local data = gcmem.new('unsigned char', width * height * channels)
 		-- read data from rows directly
