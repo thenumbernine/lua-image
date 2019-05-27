@@ -10,16 +10,16 @@ local PNGLoader = class(Loader)
 -- TODO something that adapts better
 if ffi.os == 'Windows' then
 	-- the malkia ufo header says 1.4.19 beta 
-	--PNGLoader.libpngVersion = "1.4.19"
+	--PNGLoader.libpngVersion = '1.4.19'
 	-- but 1.5.13 works 
-	-- ... or does it? now I'm getting "libpng error: Read Error"
-	PNGLoader.libpngVersion = "1.5.13"
+	-- ... or does it? now I'm getting 'libpng error: Read Error'
+	--PNGLoader.libpngVersion = '1.5.13'
 	-- but I'm going to upgrade
-	--PNGLoader.libpngVersion = "1.6.31"
+	PNGLoader.libpngVersion = '1.6.37'
 elseif ffi.os == 'OSX' then
-	PNGLoader.libpngVersion = "1.5.13"
+	PNGLoader.libpngVersion = '1.5.13'
 elseif ffi.os == 'Linux' then
-	PNGLoader.libpngVersion = "1.6.20"
+	PNGLoader.libpngVersion = '1.6.20'
 end
 
 -- replace the base loader which forced rgb
