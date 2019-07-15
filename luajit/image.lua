@@ -392,7 +392,7 @@ function Image:normalize()
 			dst.buffer[ch + self.channels * index] = (v - mins[ch]) / (maxs[ch] - mins[ch])
 		end
 	end
-	return dst
+	return dst, mins, maxs
 end
 
 function Image:map(map)
