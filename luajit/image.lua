@@ -207,13 +207,14 @@ function Image:clone()
 	return result
 end
 
+local op = require 'ext.op'
 for _,info in ipairs{
-	{op='__add', func=function(a,b) return a + b end},
-	{op='__sub', func=function(a,b) return a - b end},
-	{op='__mul', func=function(a,b) return a * b end},
-	{op='__div', func=function(a,b) return a / b end},
-	{op='__pow', func=function(a,b) return a ^ b end},
-	{op='__mod', func=function(a,b) return a % b end},
+	{op='__add', func=op.add},
+	{op='__sub', func=op.sub},
+	{op='__mul', func=op.mul},
+	{op='__div', func=op.div},
+	{op='__pow', func=op.pow},
+	{op='__mod', func=op.mod},
 } do
 	Image[info.op] = function(a,b)
 		local aIsImage = type(a) == 'table' and a.isa and a:isa(Image)
