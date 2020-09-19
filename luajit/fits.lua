@@ -7,7 +7,7 @@ If you try to save a 3-channel image via FITS, you'll get interleaved garbage.
 --]]
 local Loader = require 'image.luajit.loader'
 local class = require 'ext.class'
-local io = require 'ext.io'
+local os = require 'ext.os'
 local gcmem = require 'ext.gcmem'
 local ffi = require 'ffi'
 require 'ffi.c.string'
@@ -118,7 +118,7 @@ function FITSLoader:save(args)
 	local format = assert(args.format, "expected format")
 	local data = assert(args.data, "expected data")
 
-	if io.fileexists(filename) then os.remove(filename) end
+	if os.fileexists(filename) then os.remove(filename) end
 
 	local status = gcmem.new('int', 1)
 	status[0] = 0

@@ -4,7 +4,7 @@ local format = ...
 local Image = require 'image'
 local filename = 'test.'..format
 local writeFilename = 'test-write.'..format
-if not io.fileexists(filename) then
+if not os.fileexists(filename) then
 	-- test writing only 
 	-- ... by reading a file format that we assume is working
 	filename = 'test.bmp'
