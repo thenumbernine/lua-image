@@ -217,8 +217,8 @@ for _,info in ipairs{
 	{op='__mod', func=op.mod},
 } do
 	Image[info.op] = function(a,b)
-		local aIsImage = type(a) == 'table' and a.isa and a:isa(Image)
-		local bIsImage = type(b) == 'table' and b.isa and b:isa(Image)
+		local aIsImage = Image:isa(a)
+		local bIsImage = Image:isa(b)
 		if aIsImage and bIsImage then 
 			assert(a.width == b.width)
 			assert(a.height == b.height)
