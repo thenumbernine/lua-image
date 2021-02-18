@@ -15,23 +15,73 @@ function TIFFLoader:load(filename)
 	local fp = tiff.TIFFOpen(filename, 'r')
 	if not fp then error("failed to open file "..filename.." for reading") end
 
-	local function readtag(tagname, type)
+	local function readtag(tagname, type, default)
 		local result = gcmem.new(type, 1)
-		if tiff.TIFFGetField(fp, assert(tiff[tagname]), result) ~= 1 then error("failed to read tag "..tagname) end
+		if tiff.TIFFGetField(fp, assert(tiff[tagname]), result) ~= 1 then 
+			if default ~= nil then return default end
+			error("failed to read tag "..tagname) 
+		end
 		return result[0]
 	end
 	local width = readtag('TIFFTAG_IMAGEWIDTH', 'uint32_t')
 	local height = readtag('TIFFTAG_IMAGELENGTH', 'uint32_t')
-	local bitsPerSample = readtag('TIFFTAG_BITSPERSAMPLE', 'uint16_t')
-	local samplesPerPixel = readtag('TIFFTAG_SAMPLESPERPIXEL', 'uint16_t')
---	local sampleFormat = readtag('TIFFTAG_SAMPLEFORMAT', 'uint16_t')
+	
+	local bitsPerSample = readtag('TIFFTAG_BITSPERSAMPLE', 'uint16_t')	-- default = 1 ... but seems like it's always there
+	
+	local samplesPerPixel = readtag('TIFFTAG_SAMPLESPERPIXEL', 'uint16_t')	-- default = 1 ... but seems like it's always there
+
+	local sampleFormat = readtag('TIFFTAG_SAMPLEFORMAT', 'uint16_t', tiff.SAMPLEFORMAT_UINT)
+
 	local pixelSize = math.floor(bitsPerSample / 8 * samplesPerPixel)
 	if pixelSize == 0 then 
 		error("unsupported bitsPerSample="..bitsPerSample)--.." sampleFormat="..sampleFormat) 
 	end
+
+
+	local format
+	if sampleFormat == tiff.SAMPLEFORMAT_UINT then
+		format = ({
+			[8] = 'uint8_t',
+			[16] = 'uint16_t',
+			[32] = 'uint32_t',
+		})[bitsPerSample]
+	elseif sampleFormat == tiff.SAMPLEFORMAT_INT then
+		format = ({
+			[8] = 'int8_t',
+			[16] = 'int16_t',
+			[32] = 'int32_t',
+		})[bitsPerSample]
+	elseif sampleFormat == SAMPLEFORMAT_IEEEFP then
+		format = ({
+			[32] = 'float',
+			[64] = 'double',
+		})[bitsPerSample]
+	elseif sampleFormat == SAMPLEFORMAT_VOID then
+		format = 'uint8_t'
+		-- TODO multiply channels by bitsPerSample?  or cdef a new type based on bitsPerSample?
+		print("something will go wrong I bet")
+	elseif sampleFormat == SAMPLEFORMAT_COMPLEXINT then
+		format = ({
+			[16] = 'complex char',
+			[32] = 'complex short',
+			[64] = 'complex int',
+		})[bitsPerSample]
+	elseif sampleFormat == SAMPLEFORMAT_COMPLEXIEEEFP then
+		format = ({
+			[64] = 'complex float',
+			[128] = 'complex double',
+		})[bitsPerSample]
+	else
+		-- TODO specify if we were using the default value, or if the TIFFTAG_SAMPLEFORMAT did exist
+		error("unknown sampleFormat "..sampleFormat)
+	end
+	if not format then
+		error("couldn't deduce format from bitsPerSample="..bitsPerSample.." sampleFormat="..sampleFormat)
+	end
+
+	local data = gcmem.new(format, width * height * pixelSize)
 	
-	local data = gcmem.new('unsigned char', width * height * pixelSize)
-	local ptr = data
+	local ptr = ffi.cast('unsigned char*', data)
 	for strip=0,tiff.TIFFNumberOfStrips(fp)-1 do
 		tiff.TIFFReadEncodedStrip(fp, strip, ptr, -1)
 		local stripSize = tiff.TIFFStripSize(fp)
@@ -39,7 +89,13 @@ function TIFFLoader:load(filename)
 	end
 	tiff.TIFFClose(fp)
 
-	return {data=data, width=width, height=height}
+	return {
+		data = data,
+		width = width,
+		height = height,
+		channels = samplesPerPixel,
+		format = format,
+	}
 end
 
 -- assumes RGB data
