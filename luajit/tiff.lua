@@ -158,21 +158,23 @@ function TIFFLoader:save(args)
 
 	tiff.TIFFSetField(fp, assert(tiff.TIFFTAG_IMAGEWIDTH), ffi.cast('uint32_t', width))
 	tiff.TIFFSetField(fp, assert(tiff.TIFFTAG_IMAGELENGTH), ffi.cast('uint32_t', height))
-	tiff.TIFFSetField(fp, assert(tiff.TIFFTAG_SAMPLESPERPIXEL), ffi.cast('uint16_t', channels))
 	tiff.TIFFSetField(fp, assert(tiff.TIFFTAG_BITSPERSAMPLE), ffi.cast('uint16_t', bitsPerSample))
-	tiff.TIFFSetField(fp, assert(tiff.TIFFTAG_ROWSPERSTRIP), ffi.cast('uint32_t', tiff.TIFFDefaultStripSize(fp, stripSize)))
-	tiff.TIFFSetField(fp, assert(tiff.TIFFTAG_COMPRESSION), ffi.cast('uint16_t', assert(tiff.COMPRESSION_NONE)))
-	tiff.TIFFSetField(fp, assert(tiff.TIFFTAG_PHOTOMETRIC), ffi.cast('uint16_t', assert(tiff.PHOTOMETRIC_RGB)))
-	tiff.TIFFSetField(fp, assert(tiff.TIFFTAG_ORIENTATION), ffi.cast('uint16_t', assert(tiff.ORIENTATION_TOPLEFT)))
+	tiff.TIFFSetField(fp, assert(tiff.TIFFTAG_SAMPLESPERPIXEL), ffi.cast('uint16_t', channels))
 	tiff.TIFFSetField(fp, assert(tiff.TIFFTAG_PLANARCONFIG), ffi.cast('uint16_t', assert(tiff.PLANARCONFIG_CONTIG)))
+	tiff.TIFFSetField(fp, assert(tiff.TIFFTAG_COMPRESSION), ffi.cast('uint16_t', assert(tiff.COMPRESSION_NONE)))
+	if bitsPerSample == 8 and channels == 3 then
+		tiff.TIFFSetField(fp, assert(tiff.TIFFTAG_PHOTOMETRIC), ffi.cast('uint16_t', assert(tiff.PHOTOMETRIC_RGB)))
+	else
+		tiff.TIFFSetField(fp, assert(tiff.TIFFTAG_PHOTOMETRIC), ffi.cast('uint16_t', assert(tiff.PHOTOMETRIC_MINISBLACK)))
+	end
+	tiff.TIFFSetField(fp, assert(tiff.TIFFTAG_ORIENTATION), ffi.cast('uint16_t', assert(tiff.ORIENTATION_TOPLEFT)))
 	tiff.TIFFSetField(fp, assert(tiff.TIFFTAG_SAMPLEFORMAT), ffi.cast('uint16_t', sampleFormat))
+	tiff.TIFFSetField(fp, assert(tiff.TIFFTAG_ROWSPERSTRIP), ffi.cast('uint32_t', tiff.TIFFDefaultStripSize(fp, stripSize)))
 
 	local ptr = ffi.cast('unsigned char*', data)
 	for y=0,height-1 do
-		--tiff.TIFFWriteEncodedStrip(fp, y, ptr, stripSize)
-		if tiff.TIFFWriteScanline(fp, ptr, 0, 0) < 0 then
-			error("TIFFWriteScanline failed")
-		end
+		--tiff.TIFFWriteEncodedStrip(fp, 0, ptr, stripSize)
+		tiff.TIFFWriteScanline(fp, ptr, 0, 0)
 		ptr = ptr + stripSize
 	end
 
