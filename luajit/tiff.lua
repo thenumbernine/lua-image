@@ -51,22 +51,22 @@ function TIFFLoader:load(filename)
 			[16] = 'int16_t',
 			[32] = 'int32_t',
 		})[bitsPerSample]
-	elseif sampleFormat == SAMPLEFORMAT_IEEEFP then
+	elseif sampleFormat == tiff.SAMPLEFORMAT_IEEEFP then
 		format = ({
 			[32] = 'float',
 			[64] = 'double',
 		})[bitsPerSample]
-	elseif sampleFormat == SAMPLEFORMAT_VOID then
+	elseif sampleFormat == tiff.SAMPLEFORMAT_VOID then
 		format = 'uint8_t'
 		-- TODO multiply channels by bitsPerSample?  or cdef a new type based on bitsPerSample?
 		print("something will go wrong I bet")
-	elseif sampleFormat == SAMPLEFORMAT_COMPLEXINT then
+	elseif sampleFormat == tiff.SAMPLEFORMAT_COMPLEXINT then
 		format = ({
 			[16] = 'complex char',
 			[32] = 'complex short',
 			[64] = 'complex int',
 		})[bitsPerSample]
-	elseif sampleFormat == SAMPLEFORMAT_COMPLEXIEEEFP then
+	elseif sampleFormat == tiff.SAMPLEFORMAT_COMPLEXIEEEFP then
 		format = ({
 			[64] = 'complex float',
 			[128] = 'complex double',
@@ -98,6 +98,11 @@ function TIFFLoader:load(filename)
 	}
 end
 
+-- TIFF can handle any format, no need to convert
+function TIFFLoader:prepareImage(image)
+	return image
+end
+
 -- assumes RGB data
 function TIFFLoader:save(args)
 	-- args:
@@ -105,28 +110,70 @@ function TIFFLoader:save(args)
 	local width = assert(args.width, "expected width")
 	local height = assert(args.height, "expected height")
 	local data = assert(args.data, "expected data")
+	local format = assert(args.format, "expected format")	-- or unsigned char?
+	local channels = assert(args.channels, "expected channels")
+
+	local bytesPerSample = ffi.sizeof(format)
+	local bitsPerSample = bytesPerSample * 8
 
 --print('tiff version '..ffi.string(tiff.TIFFGetVersion()))
 
-	tiff.TIFFSetWarningHandler(nil)
-	tiff.TIFFSetErrorHandler(nil)
-	
+	local sampleFormat = assert(tiff.SAMPLEFORMAT_UINT)	-- default
+	-- TODO what about typedef'd ffi types?  any way to query ffi to find the original type? or find if it is a float type or not?
+	if format == 'int8_t'
+	or format == 'int16_t'
+	or format == 'int32_t'
+	or format == 'char'
+	or format == 'short'
+	or format == 'int'
+	or format == 'long'
+	then
+		sampleFormat = tiff.SAMPLEFORMAT_INT
+	elseif format == 'float' 
+	or format == 'double' 
+	then
+		sampleFormat = tiff.SAMPLEFORMAT_IEEEFP
+	elseif format == 'complex char'
+	or format == 'complex short'
+	or format == 'complex int'
+	then
+		sampleFormat = tiff.SAMPLEFORMAT_COMPLEXINT 
+	elseif format == 'complex float'
+	or format == 'complex double'
+	then
+		sampleFormat = tiff.SAMPLEFORMAT_COMPLEXIEEEFP
+	else
+		-- assume it's uint?
+		-- TODO support for SAMPLEFORMAT_VOID somehow?
+	end
+
+-- TODO capture errors and use lua errors?
+--	tiff.TIFFSetWarningHandler(nil)
+--	tiff.TIFFSetErrorHandler(nil)
+
 	local fp = tiff.TIFFOpen(filename, 'w')
 	if not fp then error("failed to open file "..filename.." for writing") end
+	
+	local stripSize = bytesPerSample * channels * width
 
-	tiff.TIFFSetField(fp, assert(tiff.TIFFTAG_IMAGEWIDTH), width)
-	tiff.TIFFSetField(fp, assert(tiff.TIFFTAG_IMAGELENGTH), height)
-	tiff.TIFFSetField(fp, assert(tiff.TIFFTAG_BITSPERSAMPLE), 8)	-- 8 bits per byte
-	tiff.TIFFSetField(fp, assert(tiff.TIFFTAG_COMPRESSION), assert(tiff.COMPRESSION_NONE))
-	tiff.TIFFSetField(fp, assert(tiff.TIFFTAG_PHOTOMETRIC), assert(tiff.PHOTOMETRIC_RGB))
-	tiff.TIFFSetField(fp, assert(tiff.TIFFTAG_ORIENTATION), assert(tiff.ORIENTATION_TOPLEFT))
-	tiff.TIFFSetField(fp, assert(tiff.TIFFTAG_SAMPLESPERPIXEL), 3)	-- rgb
-	tiff.TIFFSetField(fp, assert(tiff.TIFFTAG_ROWSPERSTRIP), 1)
-	tiff.TIFFSetField(fp, assert(tiff.TIFFTAG_PLANARCONFIG), assert(tiff.PLANARCONFIG_CONTIG))
-	tiff.TIFFSetField(fp, assert(tiff.TIFFTAG_SAMPLEFORMAT), assert(tiff.SAMPLEFORMAT_UINT))
+	tiff.TIFFSetField(fp, assert(tiff.TIFFTAG_IMAGEWIDTH), ffi.cast('uint32_t', width))
+	tiff.TIFFSetField(fp, assert(tiff.TIFFTAG_IMAGELENGTH), ffi.cast('uint32_t', height))
+	tiff.TIFFSetField(fp, assert(tiff.TIFFTAG_SAMPLESPERPIXEL), ffi.cast('uint16_t', channels))
+	tiff.TIFFSetField(fp, assert(tiff.TIFFTAG_BITSPERSAMPLE), ffi.cast('uint16_t', bitsPerSample))
+	tiff.TIFFSetField(fp, assert(tiff.TIFFTAG_ROWSPERSTRIP), ffi.cast('uint32_t', tiff.TIFFDefaultStripSize(fp, stripSize)))
+	tiff.TIFFSetField(fp, assert(tiff.TIFFTAG_COMPRESSION), ffi.cast('uint16_t', assert(tiff.COMPRESSION_NONE)))
+	tiff.TIFFSetField(fp, assert(tiff.TIFFTAG_PHOTOMETRIC), ffi.cast('uint16_t', assert(tiff.PHOTOMETRIC_RGB)))
+	tiff.TIFFSetField(fp, assert(tiff.TIFFTAG_ORIENTATION), ffi.cast('uint16_t', assert(tiff.ORIENTATION_TOPLEFT)))
+	tiff.TIFFSetField(fp, assert(tiff.TIFFTAG_PLANARCONFIG), ffi.cast('uint16_t', assert(tiff.PLANARCONFIG_CONTIG)))
+	tiff.TIFFSetField(fp, assert(tiff.TIFFTAG_SAMPLEFORMAT), ffi.cast('uint16_t', sampleFormat))
 
+	local ptr = ffi.cast('unsigned char*', data)
 	for y=0,height-1 do
-		tiff.TIFFWriteEncodedStrip(fp, y, data + 3 * width * y, 3 * width)
+		--tiff.TIFFWriteEncodedStrip(fp, y, ptr, stripSize)
+		if tiff.TIFFWriteScanline(fp, ptr, 0, 0) < 0 then
+			error("TIFFWriteScanline failed")
+		end
+		ptr = ptr + stripSize
 	end
 
 	tiff.TIFFClose(fp)
