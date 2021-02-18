@@ -153,8 +153,6 @@ function TIFFLoader:save(args)
 
 	local fp = tiff.TIFFOpen(filename, 'w')
 	if not fp then error("failed to open file "..filename.." for writing") end
-	
-	local stripSize = bytesPerSample * channels * width
 
 	tiff.TIFFSetField(fp, assert(tiff.TIFFTAG_IMAGEWIDTH), ffi.cast('uint32_t', width))
 	tiff.TIFFSetField(fp, assert(tiff.TIFFTAG_IMAGELENGTH), ffi.cast('uint32_t', height))
@@ -169,12 +167,15 @@ function TIFFLoader:save(args)
 	end
 	tiff.TIFFSetField(fp, assert(tiff.TIFFTAG_ORIENTATION), ffi.cast('uint16_t', assert(tiff.ORIENTATION_TOPLEFT)))
 	tiff.TIFFSetField(fp, assert(tiff.TIFFTAG_SAMPLEFORMAT), ffi.cast('uint16_t', sampleFormat))
-	tiff.TIFFSetField(fp, assert(tiff.TIFFTAG_ROWSPERSTRIP), ffi.cast('uint32_t', tiff.TIFFDefaultStripSize(fp, stripSize)))
+	
+	local stripSize = bytesPerSample * channels * width
+	stripSize = tiff.TIFFDefaultStripSize(fp, stripSize)
+	tiff.TIFFSetField(fp, assert(tiff.TIFFTAG_ROWSPERSTRIP), ffi.cast('uint32_t', stripSize))
 
 	local ptr = ffi.cast('unsigned char*', data)
 	for y=0,height-1 do
 		--tiff.TIFFWriteEncodedStrip(fp, 0, ptr, stripSize)
-		tiff.TIFFWriteScanline(fp, ptr, 0, 0)
+		tiff.TIFFWriteScanline(fp, ptr, y, 0)
 		ptr = ptr + stripSize
 	end
 
