@@ -64,6 +64,10 @@ function Image:init(width,height,channels,format,generator)
 	end
 end
 
+function Image:clear()
+	ffi.fill(self.buffer, self.width * self.height * self.channels * ffi.sizeof(self.format), 0)
+end
+
 function Image:setChannels(newChannels)
 	local dst = Image(self.width, self.height, newChannels, self.format)
 	for j=0,self.height-1 do
@@ -81,12 +85,18 @@ local formatInfo = {
 	['char'] = {bias=128, scale=255},
 	['signed char'] = {bias=128, scale=255},
 	['unsigned char'] = {scale=255},
+	['int8_t'] = {bias=128, scale=255},
+	['uint8_t'] = {scale=255},
 	['short'] = {bias=32768, scale=65536},
 	['signed short'] = {bias=32768, scale=65536},
 	['unsigned short'] = {scale=65536},
+	['int16_t'] = {bias=32768, scale=65536},
+	['uint16_t'] = {scale=65536},
 	['int'] = {bias=2^31, scale=2^32},
 	['signed int'] = {bias=2^31, scale=2^32},
 	['unsigned int'] = {scale=2^32},
+	['int32_t'] = {bias=2^31, scale=2^32},
+	['uint32_t'] = {scale=2^32},
 }
 
 function Image:setFormat(newFormat)
