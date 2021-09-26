@@ -64,8 +64,10 @@ function Image:init(width,height,channels,format,generator)
 	end
 end
 
+-- in-place operation
 function Image:clear()
 	ffi.fill(self.buffer, self.width * self.height * self.channels * ffi.sizeof(self.format), 0)
+	return self
 end
 
 function Image:setChannels(newChannels)
@@ -333,18 +335,24 @@ function Image:copy(args)
 end
 
 -- args: image, x, y
-function Image:paste(args)
+-- paste in-place, so don't make a new copy of the image
+function Image:pasteInto(args)
 	local pasted = assert(args.image)
 	assert(pasted.channels == self.channels)	-- for now ...
-	local result = self:clone()
 	for y=0,pasted.height-1 do
 		for x=0,pasted.width-1 do
 			for ch=0,pasted.channels-1 do
-				result.buffer[ch+result.channels*(x+args.x+result.width*(y+args.y))] = pasted.buffer[ch+pasted.channels*(x+pasted.width*y)]
+				self.buffer[ch+self.channels*(x+args.x+self.width*(y+args.y))] = pasted.buffer[ch+pasted.channels*(x+pasted.width*y)]
 			end
 		end
 	end
-	return result
+	return self
+end
+
+-- args: image, x, y
+-- return a new copy of the image with pasted modification
+function Image:paste(args)
+	return self:clone():pasteInto(args)
 end
 
 Image.gradientKernels = {
