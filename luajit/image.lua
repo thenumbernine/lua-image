@@ -341,8 +341,14 @@ function Image:pasteInto(args)
 	assert(pasted.channels == self.channels)	-- for now ...
 	for y=0,pasted.height-1 do
 		for x=0,pasted.width-1 do
-			for ch=0,pasted.channels-1 do
-				self.buffer[ch+self.channels*(x+args.x+self.width*(y+args.y))] = pasted.buffer[ch+pasted.channels*(x+pasted.width*y)]
+			local destx = x + args.x
+			local desty = y + args.y
+			if destx >= 0 and destx < self.width
+			and desty >= 0 and desty < self.height
+			then
+				for ch=0,pasted.channels-1 do
+					self.buffer[ch+self.channels*(destx+self.width*desty)] = pasted.buffer[ch+pasted.channels*(x+pasted.width*y)]
+				end
 			end
 		end
 	end
