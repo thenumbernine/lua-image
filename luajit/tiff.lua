@@ -183,4 +183,3 @@ function TIFFLoader:save(args)
 end
 
 return TIFFLoader
-

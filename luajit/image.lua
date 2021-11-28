@@ -64,6 +64,12 @@ function Image:init(width,height,channels,format,generator)
 	end
 end
 
+-- in-place operation
+function Image:clear()
+	ffi.fill(self.buffer, self.width * self.height * self.channels * ffi.sizeof(self.format), 0)
+	return self
+end
+
 function Image:setChannels(newChannels)
 	local dst = Image(self.width, self.height, newChannels, self.format)
 	for j=0,self.height-1 do
@@ -81,12 +87,18 @@ local formatInfo = {
 	['char'] = {bias=128, scale=255},
 	['signed char'] = {bias=128, scale=255},
 	['unsigned char'] = {scale=255},
+	['int8_t'] = {bias=128, scale=255},
+	['uint8_t'] = {scale=255},
 	['short'] = {bias=32768, scale=65536},
 	['signed short'] = {bias=32768, scale=65536},
 	['unsigned short'] = {scale=65536},
+	['int16_t'] = {bias=32768, scale=65536},
+	['uint16_t'] = {scale=65536},
 	['int'] = {bias=2^31, scale=2^32},
 	['signed int'] = {bias=2^31, scale=2^32},
 	['unsigned int'] = {scale=2^32},
+	['int32_t'] = {bias=2^31, scale=2^32},
+	['uint32_t'] = {scale=2^32},
 }
 
 function Image:setFormat(newFormat)
@@ -323,18 +335,30 @@ function Image:copy(args)
 end
 
 -- args: image, x, y
-function Image:paste(args)
+-- paste in-place, so don't make a new copy of the image
+function Image:pasteInto(args)
 	local pasted = assert(args.image)
 	assert(pasted.channels == self.channels)	-- for now ...
-	local result = self:clone()
 	for y=0,pasted.height-1 do
 		for x=0,pasted.width-1 do
-			for ch=0,pasted.channels-1 do
-				result.buffer[ch+result.channels*(x+args.x+result.width*(y+args.y))] = pasted.buffer[ch+pasted.channels*(x+pasted.width*y)]
+			local destx = x + args.x
+			local desty = y + args.y
+			if destx >= 0 and destx < self.width
+			and desty >= 0 and desty < self.height
+			then
+				for ch=0,pasted.channels-1 do
+					self.buffer[ch+self.channels*(destx+self.width*desty)] = pasted.buffer[ch+pasted.channels*(x+pasted.width*y)]
+				end
 			end
 		end
 	end
-	return result
+	return self
+end
+
+-- args: image, x, y
+-- return a new copy of the image with pasted modification
+function Image:paste(args)
+	return self:clone():pasteInto(args)
 end
 
 Image.gradientKernels = {
