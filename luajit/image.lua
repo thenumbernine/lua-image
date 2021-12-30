@@ -19,6 +19,7 @@ Image.loaders = {
 	png = 'image.luajit.png',
 	tif = 'image.luajit.tiff',
 	tiff = 'image.luajit.tiff',
+	gif = 'image.luajit.gif',
 }
 
 local function getLoaderForFilename(filename)
@@ -311,18 +312,34 @@ function Image:greyscale()
 	return dst
 end
 
+function Image:l2norm()
+	local dst = Image(self.width, self.height, 1, self.format)
+	for j=0,self.height-1 do
+		for i=0,self.width-1 do
+			local index = self.channels * (i + self.width * j)
+			local sum = 0
+			for ch=0,self.channels-1 do
+				local v = self.buffer[ch + index]
+				sum = sum + v * v
+			end
+			dst.buffer[i + self.width * j] = math.sqrt(sum)
+		end
+	end
+	return dst
+end
+
 -- args: x, y, width, height
 function Image:copy(args)
-	assert(args.x)
-	assert(args.y)
-	assert(args.width)
-	assert(args.height)
-	local result = Image(math.floor(args.width), math.floor(args.height), self.channels, self.format)
+	local argsx = math.floor(assert(args.x))
+	local argsy = math.floor(assert(args.y))
+	local argsw = math.floor(assert(args.width))
+	local argsh = math.floor(assert(args.height))
+	local result = Image(argsw, argsh, self.channels, self.format)
 	for y=0,result.height-1 do
 		for x=0,result.width-1 do
 			for ch=0,result.channels-1 do
-				local sx = x + math.floor(args.x)
-				local sy = y + math.floor(args.y)
+				local sx = x + argsx
+				local sy = y + argsy
 				if sx >= 0 and sy >= 0 and sx < self.width and sy < self.height then
 					result.buffer[ch+result.channels*(x+result.width*y)] = self.buffer[ch+self.channels*(sx+self.width*sy)]
 				else
@@ -398,6 +415,32 @@ function Image:curl()
 	local _, dy_dx = imgX:gradient()
 	local dx_dy = imgY:gradient()
 	return dy_dx - dx_dy
+end
+
+--[[
+should this return ...
+... a single value of all channel bounds?
+... two tables, one of mins and one of maxs?
+... interleaved per-channel, so that 1-channel images can just say "min, max = img:getBounds()"
+--]]
+function Image:getRange()
+	local mins = {}
+	local maxs = {}
+	local p = self.buffer
+	for ch=1,self.channels do
+		mins[ch] = p[0]
+		maxs[ch] = p[0]
+		p = p + 1
+	end
+	for index=1,self.width*self.height-1 do
+		for ch=1,self.channels do
+			local v = p[0]
+			mins[ch] = math.min(mins[ch], v)
+			maxs[ch] = math.max(maxs[ch], v)
+			p = p + 1
+		end
+	end
+	return mins, maxs
 end
 
 function Image:normalize()
@@ -646,12 +689,12 @@ function Image:resize(newx, newy, method)
 			local total = 0
 			for sy=symin,symax-1 do
 				for sx=sxmin,sxmax-1 do
-					pixel[ch+1] = self.buffer[ch+self.channels*(sx+self.width*sy)] + pixel[ch+1]
+					pixel[ch+1] = tonumber(self.buffer[ch+self.channels*(sx+self.width*sy)]) + pixel[ch+1]
 					total = total + 1
 				end
 			end
 			if total>0 then
-				pixel[ch+1] = pixel[ch+1] / total
+				pixel[ch+1] = math.floor(pixel[ch+1] / total)
 			end
 		end
 		return unpack(pixel)

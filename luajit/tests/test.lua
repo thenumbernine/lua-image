@@ -1,9 +1,9 @@
 #!/usr/bin/env luajit
 require 'ext'
-local format = ...
+local format, writeFilename = ...
 local Image = require 'image'
 local filename = 'test.'..format
-local writeFilename = 'test-write.'..format
+writeFilename = writeFilename or ('test-write.'..format)
 if not os.fileexists(filename) then
 	-- test writing only 
 	-- ... by reading a file format that we assume is working
