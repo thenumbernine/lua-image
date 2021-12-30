@@ -671,6 +671,7 @@ end
 resize options:
 nearest 
 linear
+TODO magnification and minification filter options.
 --]]
 function Image:resize(newx, newy, method)
 	newx = math.floor(newx)
