@@ -13,7 +13,7 @@ function TIFFLoader:load(filename)
 	tiff.TIFFSetErrorHandler(nil)
 
 	local fp = tiff.TIFFOpen(filename, 'r')
-	if not fp then error("failed to open file "..filename.." for reading") end
+	if fp == nil then error("failed to open file "..filename.." for reading") end
 
 	local function readtag(tagname, type, default)
 		local result = gcmem.new(type, 1)
@@ -152,7 +152,7 @@ function TIFFLoader:save(args)
 --	tiff.TIFFSetErrorHandler(nil)
 
 	local fp = tiff.TIFFOpen(filename, 'w')
-	if not fp then error("failed to open file "..filename.." for writing") end
+	if fp == nil then error("failed to open file "..filename.." for writing") end
 
 	tiff.TIFFSetField(fp, assert(tiff.TIFFTAG_IMAGEWIDTH), ffi.cast('uint32_t', width))
 	tiff.TIFFSetField(fp, assert(tiff.TIFFTAG_IMAGELENGTH), ffi.cast('uint32_t', height))

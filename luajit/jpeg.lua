@@ -1,8 +1,10 @@
 local Loader = require 'image.luajit.loader'
 local class = require 'ext.class'
 local ffi = require 'ffi'
-require 'ffi.c.stdio'	-- fopen
+require 'ffi.c.stdio'	-- fopen, fclose, FILE
+--[[ using longjmp like in the libjpeg example code
 require 'ffi.c.setjmp'	-- jmp_buf ... hmm, can I use something else?  something that won't break Lua?
+--]]
 local jpeg = require 'ffi.jpeg'
 local gcmem = require 'ext.gcmem'
 
@@ -20,33 +22,56 @@ local JPEGLoader = class(Loader)
 
 ffi.cdef[[
 struct my_error_mgr {
-	struct jpeg_error_mgr pub;	/* "public" fields */
-	jmp_buf setjmp_buffer;	/* for return to caller */
+	struct jpeg_error_mgr pub;	// "public" fields
+/* using lua errors */
+	FILE *file;
+	int writing;	//0 = reading, 1 = writing
+/**/
+/* using longjmp like in the libjpeg example code * /
+	jmp_buf setjmp_buffer;		// for return to caller
+/**/
 };
 ]]
-local errorExt = function(cinfo)
-	-- nothing? return?
-	local myerr = ffi.cast('my_error_ptr', cinfo[0].err)
+local function handleError(cinfo)
+	local myerr = ffi.cast('struct my_error_mgr*', cinfo[0].err)
+-- [[ using lua errors
+	ffi.C.fclose(myerr[0].file)
+	if myerr[0].writing then
+		jpeg.jpeg_destroy_compress(cinfo)
+	else
+		jpeg.jpeg_destroy_decompress(cinfo)
+	end
+	-- TODO get why it failed
+	error('jpeg failed')
+---]]
+--[[ using longjmp like in the libjpeg example code
 	ffi.C.longjmp(myerr[0].setjmp_buffer, 1)
+--]]
 end
-local errorExitPtr = ffi.cast('void(*)(j_common_ptr)', errorExit)
+local handleErrorCallback = ffi.cast('void(*)(j_common_ptr)', handleError)
 
 function JPEGLoader:load(filename)
 	local cinfo = gcmem.new('struct jpeg_decompress_struct', 1)
-	local jerr = gcmem.new('struct my_error_mgr', 1)
+	local myerr = gcmem.new('struct my_error_mgr', 1)
 
 	local infile = ffi.C.fopen(filename, 'rb')
 	if infile == nil then
 		error("can't open "..filename)
 	end
-
-	cinfo[0].err = jpeg.jpeg_std_error( ffi.cast('struct jpeg_error_mgr*',jerr))
-	jerr[0].pub.error_exit = errorExitPtr
-	if ffi.C.setjmp(jerr[0].setjmp_buffer) ~= 0 then
-		jpeg.jpeg_destroy_decompress(cinfo)
-		ffi.C.fclose(infile)
+-- [[ using lua errors
+	myerr[0].file = infile	-- store here for closing in the error handler if something goes wrong
+	myerr[0].writing = 0
+--]]
+	cinfo[0].err = jpeg.jpeg_std_error(ffi.cast('struct jpeg_error_mgr *', myerr))
+	
+	myerr[0].pub.error_exit = handleErrorCallback
+--[[ using longjmp like in the libjpeg example code	
+	if ffi.C.setjmp(myerr[0].setjmp_buffer) ~= 0 then
+		jpeg.jpeg_destroy_compress(cinfo)
+		ffi.C.fclose(outfile)
 		return
 	end
+--]]
 
 	jpeg.jpeg_create_decompress(cinfo)
 	jpeg.jpeg_stdio_src(cinfo, infile)
@@ -90,17 +115,20 @@ function JPEGLoader:save(args)
 	local quality = args.quality or 90
 
 	local cinfo = gcmem.new('struct jpeg_compress_struct', 1)
-	local jerr = gcmem.new('struct jpeg_error_mgr', 1)
-	--FILE * outfile;		/* target file */
-	--int row_stride;		/* physical row width in image buffer */
 
-	cinfo[0].err = jpeg.jpeg_std_error(jerr)
-	jpeg.jpeg_create_compress(cinfo)
-
-	local outfile = ffi.C.fopen(filename, 'wb')
+	local outfile = ffi.C.fopen(filename, 'wb')	-- target file
 	if outfile == nil then
   		error("can't open "..filename)
 	end
+	
+	local myerr = gcmem.new('struct my_error_mgr', 1)
+-- [[ using lua errors
+	myerr[0].file = outfile
+	myerr[0].writing = 1
+	cinfo[0].err = jpeg.jpeg_std_error(ffi.cast('struct jpeg_error_mgr*' ,myerr))
+	jpeg.jpeg_create_compress(cinfo)
+--]]
+
 	jpeg.jpeg_stdio_dest(cinfo, outfile)
 
 	cinfo[0].image_width = width
@@ -115,7 +143,7 @@ function JPEGLoader:save(args)
 
   	jpeg.jpeg_start_compress(cinfo, 1)
 
-  	local row_stride = width * 3
+  	local row_stride = width * 3	-- physical row width in image buffer
 
 	local row_pointer = gcmem.new('JSAMPROW', 1)
 	while cinfo[0].next_scanline < cinfo[0].image_height do
@@ -126,7 +154,6 @@ function JPEGLoader:save(args)
 	jpeg.jpeg_finish_compress(cinfo)
 
 	ffi.C.fclose(outfile)
-
   	jpeg.jpeg_destroy_compress(cinfo)
 end
 
