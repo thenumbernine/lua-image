@@ -7,7 +7,8 @@ local ffi = require 'ffi'
 local class = require 'ext.class'
 local gcmem = require 'ext.gcmem'
 local io = require 'ext.io'	-- getfileext
-local unpack = unpack or table.unpack
+local table = require 'ext.table'
+
 
 local Image = class()
 
@@ -206,7 +207,7 @@ function Image:__call(x, y, ...)
 			self.buffer[index+j] = v
 		end
 	end
-	return unpack(oldPixel)
+	return table.unpack(oldPixel)
 end
 
 function Image:data()
@@ -260,7 +261,7 @@ function Image:split()
 			dsts[ch+1].buffer[index] = self.buffer[ch + self.channels * index]
 		end
 	end
-	return unpack(dsts)
+	return table.unpack(dsts)
 end
 
 -- merges all image channels together
@@ -663,7 +664,7 @@ function Image:invert()
 				pixel[ch] = (scale - (tonumber(pixel[ch]) + bias)) - scale
 			end
 		end
-		return unpack(pixel)
+		return table.unpack(pixel)
 	end)
 end
 
@@ -698,8 +699,253 @@ function Image:resize(newx, newy, method)
 				pixel[ch+1] = math.floor(pixel[ch+1] / total)
 			end
 		end
-		return unpack(pixel)
+		return table.unpack(pixel)
 	end)
 end
+
+
+function Image:getHistogram()
+	local hist = {}
+	local p = ffi.cast('char*', self.buffer)
+	for i=0,self.height*self.width-1 do
+		local key = ffi.string(p, self.channels)
+		hist[key] = (hist[key] or 0) + 1
+		p = p + self.channels
+	end
+	return hist
+end
+
+
+---------------- regions and blobs ----------------
+
+
+-- holds each blob in integer indexes
+local Regions = class()
+Regions.init = table.init
+Regions.insert = table.insert
+Regions.removeObject = table.removeObject
+
+
+local Rectangles = class(Regions)
+
+local Rectangle = class()
+
+function Rectangle:drawToImage(image, color)
+	assert(image.channels >= 3)
+	if self.y1 < image.height and self.y2 >= 0 then
+		for y=math.max(0, self.y1),math.min(self.y2, image.height-1) do
+			if self.x1 < image.width and self.x1 >= 0 then
+				for x=math.max(0, self.x1),math.min(self.x2, image.width-1) do
+					local index = x + image.width * y
+					image.buffer[0 + image.channels * index] = color.x
+					image.buffer[1 + image.channels * index] = color.y
+					image.buffer[2 + image.channels * index] = color.z
+					if image.channels >= 4 then
+						image.buffer[3 + image.channels * index] = 255
+					end
+				end
+			end
+		end
+	end
+end
+
+
+local Blobs = class(Regions)
+
+function Blobs:toRects()
+	local rects = table()
+	for _,blob in ipairs(self) do
+		local rect = Rectangle()
+		do
+			local int = blob[1]
+			rect.x1 = int.x1
+			rect.x2 = int.x2
+			rect.y1 = int.y
+			rect.y2 = int.y
+		end
+		for j=2,#blob do
+			local int = blob[j]
+			rect.x1 = math.min(rect.x1, int.x1)
+			rect.x2 = math.max(rect.x2, int.x2)
+			rect.y1 = math.min(rect.y1, int.y)
+			rect.y2 = math.max(rect.y2, int.y)
+		end
+		rects:insert(rect)
+	end
+	return rects
+end
+
+local Blob = class()
+Blob.init = table.init
+Blob.insert = table.insert
+Blob.append = table.append
+
+function Blob:drawToImage(image, color)
+	assert(image.channels >= 3)
+	for _,row in ipairs(self) do
+		local y = row.y
+		if y >= 0 and y < image.height then
+			if row.x1 < image.width and row.x2 >= 0 then
+				for x=math.max(0, row.x1), math.min(row.x2, image.width-1) do
+					local index = x + image.width * y
+					image.buffer[0 + image.channels * index] = color.x
+					image.buffer[1 + image.channels * index] = color.y
+					image.buffer[2 + image.channels * index] = color.z
+					if image.channels >= 4 then
+						image.buffer[3 + image.channels * index] = 255
+					end
+				end
+			end
+		end
+	end
+end
+
+function Image:getBlobs(inside)
+	-- flood fill non-background regions
+	
+	-- first find intervals in rows
+	local rowregions = {}
+	local p = ffi.cast('char*', self.buffer)
+	for y=0,self.height-1 do
+		local x = 0
+		repeat
+			while 
+			not inside(ffi.string(p, self.channels)) 
+			and x < self.width
+			do
+				x = x + 1
+				p = p + self.channels
+			end
+			
+			-- if we didn't get to the end without finding a blob ...
+			if x == self.width then break end
+
+			local lhs = x
+			while inside(ffi.string(p, self.channels)) 
+			and x < self.width
+			do
+				x = x + 1
+				p = p + self.channels
+			end
+		
+			rowregions[y] = rowregions[y] or table()
+			rowregions[y]:insert{x1=lhs, x2=x-1, y=y}	-- [x1, x2) = [incl, excl) = row of pixels inside the classifier
+		until x == self.width
+	end
+
+	--[[ debug - don't merge rows -- looks like it works
+	do
+		local blobs = Blobs()
+		for y,regions in pairs(rowregions) do
+			for _,interval in ipairs(regions) do
+				local blob = Blob()
+				blobs:insert(blob)
+				interval.blob = blob
+				blob:insert(interval)
+			end
+		end
+		return blobs
+	end
+	--]]
+
+	-- next combine touching intervals in neighboring rows
+	local blobs = Blobs()
+	local lastrow
+	for y=0,self.height-1 do
+		local row = rowregions[y]
+	
+		-- if the previous row is empty then the next row will be filled with all new blobs
+		if not lastrow then
+			if row then
+				for _,interval in ipairs(row) do
+					local blob = Blob()	-- blob will be a table of intervals, of {x1, x2, y, blob}
+					blobs:insert(blob)
+					interval.blob = blob
+					blob:insert(interval)
+				end
+			end
+		
+		-- last row exists, so merge previous row's blobs with this row's intervals
+		else
+			--[[
+			local i1 = 1	-- index in lastrow
+			local i2 = 1	-- index in current row
+			-- advance i1 until the end of lastrow is beyond the beginning of this row
+			while lastrow[i1][2] < row[i2][1] 
+			and i1 <= #lastrow
+			do 
+				i1 = i1 + 1 
+			end
+			-- if we advanced to the end then bail, otherwise ...
+			if i1 <= #lastrow then
+				-- keep advancing until the beginning of lastrow is beyond the end of this row
+
+				-- advance until the end of this row is beyond the beginning of lastrow
+				while row[i2][2] < lastrow[i1][1]
+				and i2 <= #row
+				do
+					i2 = i2 + 1
+				end
+				
+				while 
+
+				error'bored'
+			--]]
+			if row then
+				for _,int in ipairs(row) do
+					for _,lint in ipairs(lastrow) do
+						if lint.x1 <= int.x2
+						and lint.x2 >= int.x1
+						then
+							assert(lint.blob)
+							-- touching - make sure they are in the same blob
+							if int.blob ~= lint.blob then
+								local oldblob = int.blob
+								if oldblob then
+									blobs:removeObject(oldblob)
+									for _,oint in ipairs(oldblob) do
+										oint.blob = lint.blob
+									end
+									lint.blob:append(oldblob)
+								else
+									int.blob = lint.blob
+									lint.blob:insert(int)
+								end
+							end
+						end
+					end
+					if not int.blob then
+						local blob = Blob()
+						blobs:insert(blob)
+						blob:insert(int)
+						int.blob = blob
+					end
+				end
+			end
+		end
+		
+		lastrow = row
+	end
+
+	return blobs
+end
+
+
+local vec3d = require 'vec-ffi.vec3d'
+function Image:drawRegions(regions)
+	self:clear()
+	if self.channels > 3 then
+		for i=0,self.width*self.height-1 do
+			self.buffer[3 + self.channels * i] = 255
+		end
+	end
+	for _,region in ipairs(regions) do
+		local color = (vec3d(math.random(), math.random(), math.random()):normalize() * 255):map(math.floor)
+		region:drawToImage(self, color)
+	end
+	return self
+end
+
+
 
 return Image
