@@ -946,6 +946,17 @@ function Image:drawRegions(regions)
 	return self
 end
 
-
+function Image:flip(dest)
+	local w, h, ch, fmt = self.width, self.height, self.channels, self.format
+	if not dest then
+		dest = Image(w, h, ch, fmt)
+	end
+	local sf = ffi.sizeof(fmt)
+	local rowsize = w * ch * sf
+	for y=0,h-1 do
+		ffi.copy(dest.buffer + (h-y-1) * rowsize, self.buffer + y * rowsize, rowsize)
+	end
+	return dest
+end
 
 return Image
