@@ -6,7 +6,7 @@ so this needs to be changed to work with RGBA too
 local ffi = require 'ffi'
 local class = require 'ext.class'
 local gcmem = require 'ext.gcmem'
-local io = require 'ext.io'	-- getfileext
+local file = require 'ext.file'	-- getext
 local table = require 'ext.table'
 
 
@@ -24,7 +24,7 @@ Image.loaders = {
 }
 
 local function getLoaderForFilename(filename)
-	local ext = assert(select(2, io.getfileext(filename)):lower(), "failed to get extension for filename "..tostring(filename))
+	local ext = assert(select(2, file(filename):getext()):lower(), "failed to get extension for filename "..tostring(filename))
 	local loaderRequire = assert(Image.loaders[ext], "failed to find loader class for extension "..ext.." for filename "..filename)
 	local loaderClass = require(loaderRequire)
 	local loader = loaderClass()
