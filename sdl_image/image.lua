@@ -2,7 +2,7 @@ local ffi = require 'ffi'
 local sdl = require 'ffi.sdl'
 local img = require 'ffi.sdl_image'
 local class = require 'ext.class'
-local os = require 'ext.os'	--fileexists
+local file = require 'ext.file'
 
 local ffi = require 'ffi'
 local rgbaPixelFormat
@@ -25,7 +25,7 @@ function Image:init(w,h,ch)
 	ch = 4	-- for now
 	if type(w) == 'string' then
 		local filename = w
-		if not os.fileexists(filename) then error('file not found: '..filename) end
+		if not file(filename):exists() then error('file not found: '..filename) end
 		
 		local loadSurface = img.IMG_Load(filename)
 		if loadSurface == nil then error("failed to load filename "..tostring(filename)) end
