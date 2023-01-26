@@ -15,7 +15,7 @@ function GIFLoader:load(filename, imageIndex)
 	if gifFile == nil then
 		error("DGifOpenFileName failed with error " .. err[0])
 	end
-	
+
 	--Common::Finally fileFinally([&](){ DGifCloseFile(gifFile, &err); });
 
 	-- what does this even do?
@@ -27,7 +27,7 @@ function GIFLoader:load(filename, imageIndex)
 	local --[[ColorMapObject const * const]] commonMap = gifFile[0].SColorMap
 
 	imageIndex = imageIndex % gifFile[0].ImageCount
-		
+
 	local --[[SavedImage const &]] saved = gifFile[0].SavedImages[imageIndex];
 	local --[[GifImageDesc const &]] desc = saved.ImageDesc
 	local --[[ColorMapObject const * const]] colorMap = desc.ColorMap ~= nil and desc.ColorMap or commonMap
@@ -51,7 +51,7 @@ function GIFLoader:load(filename, imageIndex)
 			end
 		end
 	end
-		
+
 	return {
 		data = data,
 		width = width,

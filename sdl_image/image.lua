@@ -4,9 +4,8 @@ local img = require 'ffi.sdl_image'
 local class = require 'ext.class'
 local file = require 'ext.file'
 
-local ffi = require 'ffi'
 local rgbaPixelFormat
-if ffi.os == 'Windows' then 
+if ffi.os == 'Windows' then
 	rgbaPixelFormat = ffi.new('SDL_PixelFormat[1]')
 	rgbaPixelFormat[0].palette = nil
 	rgbaPixelFormat[0].BitsPerPixel = 32
@@ -21,12 +20,14 @@ end
 
 local Image = class()
 
-function Image:init(w,h,ch)
-	ch = 4	-- for now
+function Image:init(w, h, ch, format, generator)
+	if ch ~= 4 then error("only supporting 4bpp for now") end
+	if format then error("haven't got format support yet") end
+	if generator then error("haven't got image source support yet") end
 	if type(w) == 'string' then
 		local filename = w
 		if not file(filename):exists() then error('file not found: '..filename) end
-		
+
 		local loadSurface = img.IMG_Load(filename)
 		if loadSurface == nil then error("failed to load filename "..tostring(filename)) end
 
@@ -38,12 +39,12 @@ function Image:init(w,h,ch)
 		end
 		sdl.SDL_FreeSurface(loadSurface)
 		if surface == nil then error("failed to convert image to displayable format") end
-		
+
 		self.surfaceRef = surface
 		self.surface = surface[0]
 		local data = self:data()
+		-- TODO init data with generator here
 		ffi.gc(self.surfaceRef, sdl.SDL_FreeSurface)
-
 	else
 		self.surface = sdl.SDL_CreateRGBSurface(sdl.SDL_SWSURFACE, w, h, bit.lshift(ch, 3), 0x000000ff, 0x0000ff00, 0x00ff0000, 0xff000000)
 	end
@@ -57,7 +58,7 @@ function Image:data()
 	return ffi.cast('unsigned char *', self.surface.pixels)
 end
 
--- TODO verify rgba order 
+-- TODO verify rgba order
 function Image:__call(x,y,r,g,b,a)
 	local i = 4 * (x + self.surface.w * y)
 	local pixels = ffi.cast('unsigned char *', self.surface.pixels)

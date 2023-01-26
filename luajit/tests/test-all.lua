@@ -1,6 +1,5 @@
 #!/usr/bin/env luajit
 local ffi = require 'ffi'
-local Image = require 'image'
 for format,cond in pairs{
 	bmp = true,
 	fits = true,

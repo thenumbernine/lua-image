@@ -63,9 +63,9 @@ function JPEGLoader:load(filename)
 	myerr[0].writing = 0
 --]]
 	cinfo[0].err = jpeg.jpeg_std_error(ffi.cast('struct jpeg_error_mgr *', myerr))
-	
+
 	myerr[0].pub.error_exit = handleErrorCallback
---[[ using longjmp like in the libjpeg example code	
+--[[ using longjmp like in the libjpeg example code
 	if ffi.C.setjmp(myerr[0].setjmp_buffer) ~= 0 then
 		jpeg.jpeg_destroy_compress(cinfo)
 		ffi.C.fclose(outfile)
@@ -118,9 +118,9 @@ function JPEGLoader:save(args)
 
 	local outfile = ffi.C.fopen(filename, 'wb')	-- target file
 	if outfile == nil then
-  		error("can't open "..filename)
+		error("can't open "..filename)
 	end
-	
+
 	local myerr = gcmem.new('struct my_error_mgr', 1)
 -- [[ using lua errors
 	myerr[0].file = outfile
@@ -136,14 +136,14 @@ function JPEGLoader:save(args)
 	assert(channels == 3)
 	cinfo[0].input_components = channels
 	cinfo[0].in_color_space = jpeg.JCS_RGB
-  
+
 	jpeg.jpeg_set_defaults(cinfo)
-  
-  	jpeg.jpeg_set_quality(cinfo, quality, 1)
 
-  	jpeg.jpeg_start_compress(cinfo, 1)
+	jpeg.jpeg_set_quality(cinfo, quality, 1)
 
-  	local row_stride = width * 3	-- physical row width in image buffer
+	jpeg.jpeg_start_compress(cinfo, 1)
+
+	local row_stride = width * 3	-- physical row width in image buffer
 
 	local row_pointer = gcmem.new('JSAMPROW', 1)
 	while cinfo[0].next_scanline < cinfo[0].image_height do
@@ -154,7 +154,7 @@ function JPEGLoader:save(args)
 	jpeg.jpeg_finish_compress(cinfo)
 
 	ffi.C.fclose(outfile)
-  	jpeg.jpeg_destroy_compress(cinfo)
+	jpeg.jpeg_destroy_compress(cinfo)
 end
 
 return JPEGLoader

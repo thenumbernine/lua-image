@@ -9,9 +9,9 @@ local PNGLoader = class(Loader)
 
 -- TODO something that adapts better
 if ffi.os == 'Windows' then
-	-- the malkia ufo header says 1.4.19 beta 
+	-- the malkia ufo header says 1.4.19 beta
 	--PNGLoader.libpngVersion = '1.4.19'
-	-- but 1.5.13 works 
+	-- but 1.5.13 works
 	-- ... or does it? now I'm getting 'libpng error: Read Error'
 	--PNGLoader.libpngVersion = '1.5.13'
 	-- but I'm going to upgrade
@@ -49,8 +49,8 @@ end)
 function PNGLoader:load(filename)
 	assert(filename, "expected filename")
 	return select(2, assert(xpcall(function()
-			
-		
+
+
 		local header = gcmem.new('char',8)	-- 8 is the maximum size that can be checked
 
 		-- open file and test for it being a png
@@ -88,7 +88,7 @@ function PNGLoader:load(filename)
 		local colorTypePalette = png.PNG_COLOR_MASK_PALETTE + png.PNG_COLOR_MASK_COLOR
 		if colorType ~= png.PNG_COLOR_TYPE_RGB
 		and colorType ~= png.PNG_COLOR_TYPE_RGB_ALPHA
-		and colorType ~= colorTypePalette 
+		and colorType ~= colorTypePalette
 		then
 			error("expected colorType to be PNG_COLOR_TYPE_RGB or PNG_COLOR_TYPE_RGB_ALPHA, got "..colorType)
 		end

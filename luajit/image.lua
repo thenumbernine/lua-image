@@ -104,7 +104,6 @@ local formatInfo = {
 }
 
 function Image:setFormat(newFormat)
-	local newData = gcmem.new(newFormat, self.width * self.height * self.channels)
 	local dst = Image(self.width, self.height, self.channels, newFormat)
 	local fromFormatInfo = formatInfo[self.format]
 	local toFormatInfo = formatInfo[newFormat]
@@ -160,8 +159,8 @@ function Image:save(filename, ...)
 	local loader = getLoaderForFilename(filename)
 
 	-- may or may not be the same object ...
-	local converted = loader:prepareImage(self)	
-	
+	local converted = loader:prepareImage(self)
+
 	loader:save{
 		filename = filename,
 		width = converted.width,
@@ -170,9 +169,9 @@ function Image:save(filename, ...)
 		format = converted.format,
 		data = converted.buffer,
 	}
-	
+
 	-- returns self solely for chaining commands
-	return self 
+	return self
 end
 
 -- the common API
@@ -233,7 +232,7 @@ for _,info in ipairs{
 	Image[info.op] = function(a,b)
 		local aIsImage = Image:isa(a)
 		local bIsImage = Image:isa(b)
-		if aIsImage and bIsImage then 
+		if aIsImage and bIsImage then
 			assert(a.width == b.width)
 			assert(a.height == b.height)
 			assert(a.channels == b.channels)
@@ -397,6 +396,7 @@ function Image:gradient(kernelName, offsetX, offsetY)
 		self:kernel(kernel:transpose(), false, offsetY, offsetX)
 end
 
+-- https://en.wikipedia.org//wiki/Curvature
 function Image:curvature()
 	assert(self.channels == 1)
 	local gradX, gradY = self:gradient()
@@ -487,7 +487,7 @@ function Image:blur()
 			local ip = (i+1)%self.width
 			local im = (i-1+self.width)%self.width
 			for ch=0,self.channels-1 do
-				dst.buffer[ch+self.channels*(i+self.width*j)] = 
+				dst.buffer[ch+self.channels*(i+self.width*j)] =
 					(self.buffer[ch+self.channels*(ip+self.width*j)]
 					+ self.buffer[ch+self.channels*(im+self.width*j)]
 					+ self.buffer[ch+self.channels*(i+self.width*jp)]
@@ -512,7 +512,7 @@ function Image:kernel(kernel, normalize, ofx, ofy)
 				normalization = normalization + kernelValue
 			end
 		end
-		normalization = 1 / normalization 
+		normalization = 1 / normalization
 	end
 
 	for j=0,self.height-1 do
@@ -527,7 +527,7 @@ function Image:kernel(kernel, normalize, ofx, ofy)
 						sum = sum + kernelValue * self.buffer[ch + self.channels * (sx + self.width * sy)]
 					end
 				end
-				dst.buffer[ch + self.channels * (i + self.width * j)] = normalization * sum 
+				dst.buffer[ch + self.channels * (i + self.width * j)] = normalization * sum
 			end
 		end
 	end
@@ -555,7 +555,7 @@ function Image.gaussianKernel(sigma, width, height)
 	return Image(width, height, 1, 'double', function(x,y)
 		local dx = (x+.5) - (width/2)
 		local dy = (y+.5) - (height/2)
-		return normalization * math.exp((-dx*dx-dy*dy)/sigmaSq) 
+		return normalization * math.exp((-dx*dx-dy*dy)/sigmaSq)
 	end)
 end
 
@@ -581,7 +581,7 @@ end
 
 function Image:norm()
 	return self:dot(self)
-end 
+end
 
 -- 'self' should be the solution vector (b)
 function Image:solveConjGrad(args)
@@ -635,7 +635,7 @@ function Image:solveGMRes(args)
 		errorCallback = args.errorCallback,
 		epsilon = args.epsilon,
 		maxiter = args.maxiter or 10 * volume,
-		restart = args.restart or volume, 
+		restart = args.restart or volume,
 	}
 end
 
@@ -670,14 +670,14 @@ end
 
 --[[
 resize options:
-nearest 
+nearest
 linear
 TODO magnification and minification filter options.
 --]]
 function Image:resize(newx, newy, method)
 	newx = math.floor(newx)
 	newy = math.floor(newy)
-	method = method or 'nearest'
+	method = method or 'nearest'	-- TODO use this
 	return Image(newx, newy, self.channels, self.format, function(x,y)
 		local sxmin = math.floor(x*self.width/newx)
 		local sxmax = math.floor((x+1)*self.width/newx)
@@ -725,8 +725,6 @@ Regions.init = table.init
 Regions.insert = table.insert
 Regions.removeObject = table.removeObject
 
-
-local Rectangles = class(Regions)
 
 local Rectangle = class()
 
@@ -802,32 +800,32 @@ end
 
 function Image:getBlobs(inside)
 	-- flood fill non-background regions
-	
+
 	-- first find intervals in rows
 	local rowregions = {}
 	local p = ffi.cast('char*', self.buffer)
 	for y=0,self.height-1 do
 		local x = 0
 		repeat
-			while 
-			not inside(ffi.string(p, self.channels)) 
+			while
+			not inside(ffi.string(p, self.channels))
 			and x < self.width
 			do
 				x = x + 1
 				p = p + self.channels
 			end
-			
+
 			-- if we didn't get to the end without finding a blob ...
 			if x == self.width then break end
 
 			local lhs = x
-			while inside(ffi.string(p, self.channels)) 
+			while inside(ffi.string(p, self.channels))
 			and x < self.width
 			do
 				x = x + 1
 				p = p + self.channels
 			end
-		
+
 			rowregions[y] = rowregions[y] or table()
 			rowregions[y]:insert{x1=lhs, x2=x-1, y=y}	-- [x1, x2) = [incl, excl) = row of pixels inside the classifier
 		until x == self.width
@@ -853,7 +851,7 @@ function Image:getBlobs(inside)
 	local lastrow
 	for y=0,self.height-1 do
 		local row = rowregions[y]
-	
+
 		-- if the previous row is empty then the next row will be filled with all new blobs
 		if not lastrow then
 			if row then
@@ -864,17 +862,17 @@ function Image:getBlobs(inside)
 					blob:insert(interval)
 				end
 			end
-		
+
 		-- last row exists, so merge previous row's blobs with this row's intervals
 		else
 			--[[
 			local i1 = 1	-- index in lastrow
 			local i2 = 1	-- index in current row
 			-- advance i1 until the end of lastrow is beyond the beginning of this row
-			while lastrow[i1][2] < row[i2][1] 
+			while lastrow[i1][2] < row[i2][1]
 			and i1 <= #lastrow
-			do 
-				i1 = i1 + 1 
+			do
+				i1 = i1 + 1
 			end
 			-- if we advanced to the end then bail, otherwise ...
 			if i1 <= #lastrow then
@@ -886,8 +884,8 @@ function Image:getBlobs(inside)
 				do
 					i2 = i2 + 1
 				end
-				
-				while 
+
+				while
 
 				error'bored'
 			--]]
@@ -923,7 +921,7 @@ function Image:getBlobs(inside)
 				end
 			end
 		end
-		
+
 		lastrow = row
 	end
 

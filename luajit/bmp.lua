@@ -55,17 +55,17 @@ function BMPLoader:load(filename)
 	ffi.C.fread(fileHeader, ffi.sizeof(fileHeader[0]), 1, file)
 
 --[[
-	print('file header:')	
+	print('file header:')
 	print('type', ('%x'):format(fileHeader[0].bfType))
 	print('size', fileHeader[0].bfSize)
 	print('reserved1', fileHeader[0].bfReserved1)
 	print('reserved2', fileHeader[0].bfReserved2)
 	print('offset', fileHeader[0].bfOffBits)
 --]]
-	
+
 	assert(fileHeader[0].bfType == 0x4d42, "image has bad signature")
 	-- assert that the reserved are zero?
-	
+
 	local infoHeader = gcmem.new('BITMAPINFOHEADER', 1)
 	ffi.C.fread(infoHeader, ffi.sizeof(infoHeader[0]), 1, file)
 
@@ -85,7 +85,7 @@ function BMPLoader:load(filename)
 --]]
 
 	assert(infoHeader[0].biBitCount == 24 or infoHeader[0].biBitCount == 32, "only supports 24-bpp or 32-bpp images")
-	channels = infoHeader[0].biBitCount/8
+	local channels = infoHeader[0].biBitCount/8
 	assert(infoHeader[0].biCompression == 0, "only supports uncompressed images, found compression method "..infoHeader[0].biCompression)
 
 	ffi.C.fseek(file, fileHeader[0].bfOffBits, ffi.C.SEEK_SET)
@@ -99,15 +99,15 @@ function BMPLoader:load(filename)
 	local padding = (4-(channels * width))%4
 
 	for y=height-1,0,-1 do
-		-- write it out as BGR	
+		-- write it out as BGR
 		ffi.C.fread(data + channels * width * y, channels * width, 1, file)
-	
+
 		for x=0,width-1 do
 			local offset = channels*(x+width*y)
 			data[0+offset], data[1+offset], data[2+offset] = data[2+offset], data[1+offset], data[0+offset]
 		end
 
-		if padding ~= 0 then 
+		if padding ~= 0 then
 			ffi.C.fseek(file, padding, ffi.C.SEEK_SET)
 		end
 	end
@@ -137,16 +137,16 @@ function BMPLoader:save(args)
 
 	local fileHeader = gcmem.new('BITMAPFILEHEADER', 1)
 	local infoHeader = gcmem.new('BITMAPINFOHEADER', 1)
-	local offset = ffi.sizeof(fileHeader[0]) + ffi.sizeof(infoHeader[0])
-	
+	local headerOffset = ffi.sizeof(fileHeader[0]) + ffi.sizeof(infoHeader[0])
+
 	local file = ffi.C.fopen(filename, 'wb')
 	if file == nil then error("failed to open file "..filename.." for writing") end
 
 	fileHeader[0].bfType = 0x4d42
-	fileHeader[0].bfSize = rowsize * height + offset
+	fileHeader[0].bfSize = rowsize * height + headerOffset
 	fileHeader[0].bfReserved1 = 0
 	fileHeader[0].bfReserved2 = 0
-	fileHeader[0].bfOffBits = offset
+	fileHeader[0].bfOffBits = headerOffset
 	ffi.C.fwrite(fileHeader, ffi.sizeof(fileHeader[0]), 1, file)
 
 	infoHeader[0].biSize = ffi.sizeof(infoHeader[0])
@@ -167,12 +167,12 @@ function BMPLoader:save(args)
 	for y=height-1,0,-1 do
 		ffi.copy(row, data + channels * width * y, channels * width)
 		for x=0,width-1 do
-			local offset = channels * x
-			row[0+offset], row[2+offset] = row[2+offset], row[0+offset]
+			local rowOffset = channels * x
+			row[0+rowOffset], row[2+rowOffset] = row[2+rowOffset], row[0+rowOffset]
 		end
 		ffi.C.fwrite(row, channels * width, 1, file)
-		if padding ~= 0 then 
-			ffi.C.fwrite(zero, padding, 1, file) 
+		if padding ~= 0 then
+			ffi.C.fwrite(zero, padding, 1, file)
 		end
 	end
 
@@ -184,4 +184,4 @@ function BMPLoader:save(args)
 	ffi.C.fclose(file)
 end
 
-return BMPLoader 
+return BMPLoader

@@ -17,24 +17,24 @@ function TIFFLoader:load(filename)
 
 	local function readtag(tagname, type, default)
 		local result = gcmem.new(type, 1)
-		if tiff.TIFFGetField(fp, assert(tiff[tagname]), result) ~= 1 then 
+		if tiff.TIFFGetField(fp, assert(tiff[tagname]), result) ~= 1 then
 			if default ~= nil then return default end
-			error("failed to read tag "..tagname) 
+			error("failed to read tag "..tagname)
 		end
 		return result[0]
 	end
 	local width = readtag('TIFFTAG_IMAGEWIDTH', 'uint32_t')
 	local height = readtag('TIFFTAG_IMAGELENGTH', 'uint32_t')
-	
+
 	local bitsPerSample = readtag('TIFFTAG_BITSPERSAMPLE', 'uint16_t')	-- default = 1 ... but seems like it's always there
-	
+
 	local samplesPerPixel = readtag('TIFFTAG_SAMPLESPERPIXEL', 'uint16_t')	-- default = 1 ... but seems like it's always there
 
 	local sampleFormat = readtag('TIFFTAG_SAMPLEFORMAT', 'uint16_t', tiff.SAMPLEFORMAT_UINT)
 
 	local pixelSize = math.floor(bitsPerSample / 8 * samplesPerPixel)
-	if pixelSize == 0 then 
-		error("unsupported bitsPerSample="..bitsPerSample)--.." sampleFormat="..sampleFormat) 
+	if pixelSize == 0 then
+		error("unsupported bitsPerSample="..bitsPerSample)--.." sampleFormat="..sampleFormat)
 	end
 
 
@@ -80,7 +80,7 @@ function TIFFLoader:load(filename)
 	end
 
 	local data = gcmem.new(format, width * height * pixelSize)
-	
+
 	local ptr = ffi.cast('unsigned char*', data)
 	for strip=0,tiff.TIFFNumberOfStrips(fp)-1 do
 		tiff.TIFFReadEncodedStrip(fp, strip, ptr, -1)
@@ -129,15 +129,15 @@ function TIFFLoader:save(args)
 	or format == 'long'
 	then
 		sampleFormat = tiff.SAMPLEFORMAT_INT
-	elseif format == 'float' 
-	or format == 'double' 
+	elseif format == 'float'
+	or format == 'double'
 	then
 		sampleFormat = tiff.SAMPLEFORMAT_IEEEFP
 	elseif format == 'complex char'
 	or format == 'complex short'
 	or format == 'complex int'
 	then
-		sampleFormat = tiff.SAMPLEFORMAT_COMPLEXINT 
+		sampleFormat = tiff.SAMPLEFORMAT_COMPLEXINT
 	elseif format == 'complex float'
 	or format == 'complex double'
 	then
@@ -167,7 +167,7 @@ function TIFFLoader:save(args)
 	end
 	tiff.TIFFSetField(fp, assert(tiff.TIFFTAG_ORIENTATION), ffi.cast('uint16_t', assert(tiff.ORIENTATION_TOPLEFT)))
 	tiff.TIFFSetField(fp, assert(tiff.TIFFTAG_SAMPLEFORMAT), ffi.cast('uint16_t', sampleFormat))
-	
+
 	local stripSize = bytesPerSample * channels * width
 	stripSize = tiff.TIFFDefaultStripSize(fp, stripSize)
 	tiff.TIFFSetField(fp, assert(tiff.TIFFTAG_ROWSPERSTRIP), ffi.cast('uint32_t', stripSize))
