@@ -24,7 +24,9 @@ Image.loaders = {
 }
 
 local function getLoaderForFilename(filename)
-	local ext = assert(select(2, file(filename):getext()):lower(), "failed to get extension for filename "..tostring(filename))
+	local ext = select(2, file(filename):getext())
+	if ext then ext = ext:lower() end
+	assert(ext, "failed to get extension for filename "..tostring(filename))
 	local loaderRequire = assert(Image.loaders[ext], "failed to find loader class for extension "..ext.." for filename "..filename)
 	local loaderClass = require(loaderRequire)
 	local loader = loaderClass()
