@@ -805,12 +805,12 @@ function Image:getBlobs(inside)
 
 	-- first find intervals in rows
 	local rowregions = {}
-	local p = ffi.cast('char*', self.buffer)
+	local p = self.buffer
 	for y=0,self.height-1 do
 		local x = 0
 		repeat
 			while
-			not inside(ffi.string(p, self.channels))
+			not inside(p, self.channels)
 			and x < self.width
 			do
 				x = x + 1
@@ -821,7 +821,7 @@ function Image:getBlobs(inside)
 			if x == self.width then break end
 
 			local lhs = x
-			while inside(ffi.string(p, self.channels))
+			while inside(p, self.channels)
 			and x < self.width
 			do
 				x = x + 1

@@ -1,7 +1,7 @@
 local Loader = require 'image.luajit.loader'
 local class = require 'ext.class'
 local ffi = require 'ffi'
-require 'ffi.c.stdio'	-- fopen, fclose, FILE
+local stdio = require 'ffi.c.stdio'	-- fopen, fclose, FILE ... use stdio instead of ffi.C for browser compat
 --[[ using longjmp like in the libjpeg example code
 require 'ffi.c.setjmp'	-- jmp_buf ... hmm, can I use something else?  something that won't break Lua?
 --]]
@@ -35,7 +35,7 @@ struct my_error_mgr {
 local function handleError(cinfo)
 	local myerr = ffi.cast('struct my_error_mgr*', cinfo[0].err)
 -- [[ using lua errors
-	ffi.C.fclose(myerr[0].file)
+	stdio.fclose(myerr[0].file)
 	if myerr[0].writing then
 		jpeg.jpeg_destroy_compress(cinfo)
 	else
@@ -54,7 +54,7 @@ function JPEGLoader:load(filename)
 	local cinfo = gcmem.new('struct jpeg_decompress_struct', 1)
 	local myerr = gcmem.new('struct my_error_mgr', 1)
 
-	local infile = ffi.C.fopen(filename, 'rb')
+	local infile = stdio.fopen(filename, 'rb')
 	if infile == nil then
 		error("can't open "..filename)
 	end
@@ -68,7 +68,7 @@ function JPEGLoader:load(filename)
 --[[ using longjmp like in the libjpeg example code
 	if ffi.C.setjmp(myerr[0].setjmp_buffer) ~= 0 then
 		jpeg.jpeg_destroy_compress(cinfo)
-		ffi.C.fclose(outfile)
+		stdio.fclose(outfile)
 		return
 	end
 --]]
@@ -95,7 +95,7 @@ function JPEGLoader:load(filename)
 	end
 	jpeg.jpeg_finish_decompress(cinfo)
 	jpeg.jpeg_destroy_decompress(cinfo)
-	ffi.C.fclose(infile)
+	stdio.fclose(infile)
 
 	return {
 		data = data,
@@ -116,7 +116,7 @@ function JPEGLoader:save(args)
 
 	local cinfo = gcmem.new('struct jpeg_compress_struct', 1)
 
-	local outfile = ffi.C.fopen(filename, 'wb')	-- target file
+	local outfile = stdio.fopen(filename, 'wb')	-- target file
 	if outfile == nil then
 		error("can't open "..filename)
 	end
@@ -153,7 +153,7 @@ function JPEGLoader:save(args)
 
 	jpeg.jpeg_finish_compress(cinfo)
 
-	ffi.C.fclose(outfile)
+	stdio.fclose(outfile)
 	jpeg.jpeg_destroy_compress(cinfo)
 end
 

@@ -2,6 +2,7 @@ local Loader = require 'image.luajit.loader'
 local class = require 'ext.class'
 local ffi = require 'ffi'
 require 'ffi.c.string'	--memcpy
+local stdio = require 'ffi.c.stdio'	-- use stdio instead of ffi.C for browser compat
 local png = require 'ffi.png'
 local gcmem = require 'ext.gcmem'
 
@@ -54,12 +55,12 @@ function PNGLoader:load(filename)
 		local header = gcmem.new('char',8)	-- 8 is the maximum size that can be checked
 
 		-- open file and test for it being a png
-		local fp = ffi.C.fopen(filename, 'rb')
+		local fp = stdio.fopen(filename, 'rb')
 		if fp == nil then
 			error(string.format("[read_png_file] File %s could not be opened for reading", filename))
 		end
 
-		ffi.C.fread(header, 1, 8, fp)
+		stdio.fread(header, 1, 8, fp)
 		if png.png_sig_cmp(header, 0, 8) ~= 0 then
 			error(string.format("[read_png_file] File %s is not recognized as a PNGLoader file", filename))
 		end
@@ -115,7 +116,7 @@ function PNGLoader:load(filename)
 
 		-- TODO free row_pointers?
 
-		ffi.C.fclose(fp)
+		stdio.fclose(fp)
 
 		return {
 			data = data,
@@ -136,7 +137,7 @@ function PNGLoader:save(args)
 	local channels = assert(args.channels, "expected channels")
 	local data = assert(args.data, "expected data")
 
-	local fp = ffi.C.fopen(filename, 'wb')
+	local fp = stdio.fopen(filename, 'wb')
 	if fp == nil then error("failed to open file "..filename.." for writing") end
 
 	-- initialize stuff
@@ -178,7 +179,7 @@ function PNGLoader:save(args)
 	png.png_write_end(png_ptr, nil)
 
 	-- close file
-	ffi.C.fclose(fp)
+	stdio.fclose(fp)
 end
 
 return PNGLoader

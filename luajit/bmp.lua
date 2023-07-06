@@ -5,8 +5,8 @@ I'm also saving images upside-down ... but I'm working with flipped buffers so i
 local Loader = require 'image.luajit.loader'
 local class = require 'ext.class'
 local ffi = require 'ffi'
+local stdio = require 'ffi.c.stdio'	-- use stdio instead of ffi.C for browser compat
 local gcmem = require 'ext.gcmem'
-require 'ffi.c.stdio'
 
 ffi.cdef[[
 
@@ -48,11 +48,11 @@ typedef struct tagBITMAPINFOHEADER BITMAPINFOHEADER;
 local BMPLoader = class(Loader)
 
 function BMPLoader:load(filename)
-	local file = ffi.C.fopen(filename, 'rb')
+	local file = stdio.fopen(filename, 'rb')
 	if file == nil then error("failed to open file "..filename.." for reading") end
 
 	local fileHeader = gcmem.new('BITMAPFILEHEADER', 1)
-	ffi.C.fread(fileHeader, ffi.sizeof(fileHeader[0]), 1, file)
+	stdio.fread(fileHeader, ffi.sizeof(fileHeader[0]), 1, file)
 
 --[[
 	print('file header:')
@@ -67,7 +67,7 @@ function BMPLoader:load(filename)
 	-- assert that the reserved are zero?
 
 	local infoHeader = gcmem.new('BITMAPINFOHEADER', 1)
-	ffi.C.fread(infoHeader, ffi.sizeof(infoHeader[0]), 1, file)
+	stdio.fread(infoHeader, ffi.sizeof(infoHeader[0]), 1, file)
 
 --[[
 	print('info header:')
@@ -88,7 +88,7 @@ function BMPLoader:load(filename)
 	local channels = infoHeader[0].biBitCount/8
 	assert(infoHeader[0].biCompression == 0, "only supports uncompressed images, found compression method "..infoHeader[0].biCompression)
 
-	ffi.C.fseek(file, fileHeader[0].bfOffBits, ffi.C.SEEK_SET)
+	stdio.fseek(file, fileHeader[0].bfOffBits, stdio.SEEK_SET)
 
 	local width = infoHeader[0].biWidth
 	local height = infoHeader[0].biHeight
@@ -100,7 +100,7 @@ function BMPLoader:load(filename)
 
 	for y=height-1,0,-1 do
 		-- write it out as BGR
-		ffi.C.fread(data + channels * width * y, channels * width, 1, file)
+		stdio.fread(data + channels * width * y, channels * width, 1, file)
 
 		for x=0,width-1 do
 			local offset = channels*(x+width*y)
@@ -108,11 +108,11 @@ function BMPLoader:load(filename)
 		end
 
 		if padding ~= 0 then
-			ffi.C.fseek(file, padding, ffi.C.SEEK_SET)
+			stdio.fseek(file, padding, stdio.SEEK_SET)
 		end
 	end
 
-	ffi.C.fclose(file)
+	stdio.fclose(file)
 
 	return {
 		data = data,
@@ -139,7 +139,7 @@ function BMPLoader:save(args)
 	local infoHeader = gcmem.new('BITMAPINFOHEADER', 1)
 	local headerOffset = ffi.sizeof(fileHeader[0]) + ffi.sizeof(infoHeader[0])
 
-	local file = ffi.C.fopen(filename, 'wb')
+	local file = stdio.fopen(filename, 'wb')
 	if file == nil then error("failed to open file "..filename.." for writing") end
 
 	fileHeader[0].bfType = 0x4d42
@@ -147,7 +147,7 @@ function BMPLoader:save(args)
 	fileHeader[0].bfReserved1 = 0
 	fileHeader[0].bfReserved2 = 0
 	fileHeader[0].bfOffBits = headerOffset
-	ffi.C.fwrite(fileHeader, ffi.sizeof(fileHeader[0]), 1, file)
+	stdio.fwrite(fileHeader, ffi.sizeof(fileHeader[0]), 1, file)
 
 	infoHeader[0].biSize = ffi.sizeof(infoHeader[0])
 	infoHeader[0].biWidth = width
@@ -158,7 +158,7 @@ function BMPLoader:save(args)
 	infoHeader[0].biSizeImage = 0	-- rowsize * height?  the source has zero here
 	infoHeader[0].biXPelsPerMeter = args.xdpi or 300
 	infoHeader[0].biYPelsPerMeter = args.ydpi or 300
-	ffi.C.fwrite(infoHeader, ffi.sizeof(infoHeader[0]), 1, file)
+	stdio.fwrite(infoHeader, ffi.sizeof(infoHeader[0]), 1, file)
 
 	local zero = gcmem.new('int', 1)
 	zero[0] = 0
@@ -170,9 +170,9 @@ function BMPLoader:save(args)
 			local rowOffset = channels * x
 			row[0+rowOffset], row[2+rowOffset] = row[2+rowOffset], row[0+rowOffset]
 		end
-		ffi.C.fwrite(row, channels * width, 1, file)
+		stdio.fwrite(row, channels * width, 1, file)
 		if padding ~= 0 then
-			ffi.C.fwrite(zero, padding, 1, file)
+			stdio.fwrite(zero, padding, 1, file)
 		end
 	end
 
@@ -181,7 +181,7 @@ function BMPLoader:save(args)
 	gcmem.free(fileHeader)
 	gcmem.free(infoHeader)
 
-	ffi.C.fclose(file)
+	stdio.fclose(file)
 end
 
 return BMPLoader
