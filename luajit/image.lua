@@ -765,7 +765,6 @@ end
 
 
 local Blobs = class(Regions)
-Blobs.remove = table.remove
 
 function Blobs:toRects()
 	local rects = table()
@@ -815,18 +814,6 @@ function Blob:drawToImage(image, color)
 	end
 end
 
-ffi.cdef[[
-typedef struct {
-	int x1;
-	int x2;
-	int y;
-	int cl;		//classification
-	int blob;	//blob index
-} ImageBlobInterval_t;
-]]
-
-local vector = require 'ffi.cpp.vector'
-
 function Image:getBlobs(ctx)
 	local classify = assert(ctx.classify)
 
@@ -838,10 +825,10 @@ function Image:getBlobs(ctx)
 	for j=1,self.height do
 		local row = rowregions[j]
 		if not row then
-			row = vector'ImageBlobInterval_t'
+			row = table()
 			rowregions[j] = row
 		else
-			row:clear()
+			for k,v in pairs(row) do row[k] = nil end
 		end
 	end
 	for j=self.height+1,#rowregions do
@@ -870,14 +857,7 @@ function Image:getBlobs(ctx)
 				p = p + self.channels
 				cl2 = classify(p, self.channels)
 			until x == self.width or cl ~= cl2
-			local r = row:emplace_back()
-			-- [x1, x2) = [incl, excl) = row of pixels inside the classifier
-			r.x1 = lhs
-			r.x2 = x - 1
-			r.y = y
-			r.cl = cl
-			r.blob = -1
-			-- prepare for next col
+			row:insert{x1=lhs, x2=x-1, y=y, cl=cl}	-- [x1, x2) = [incl, excl) = row of pixels inside the classifier
 			cl = cl2
 		until x == self.width
 	end
@@ -887,73 +867,51 @@ function Image:getBlobs(ctx)
 	for y=0,self.height-1 do
 		local row = rowregions[y+1]
 		-- if the previous row is empty then the next row will be filled with all new blobs
-		if not lastrow or lastrow.size == 0 then
-			if row.size > 0 then
-				for i=0,row.size-1 do
-					local int = row.v[i]
+		if not lastrow or #lastrow == 0 then
+			if #row > 0 then
+				for _,interval in ipairs(row) do
 					local blob = Blob()	-- blob will be a table of intervals, of {x1, x2, y, blob}
 					blobs:insert(blob)
-					blob:insert(int)
-					int.blob = #blobs
-					blob.cl = int.cl
+					blob:insert(interval)
+					interval.blob = blob
+					blob.cl = interval.cl
 				end
 			end
 		-- last row exists, so merge previous row's blobs with this row's intervals
 		else
-			if row.size > 0 then
-				for i=0,row.size-1 do
-					local int = row.v[i]
-					for j=0,lastrow.size-1 do
-						local lint = lastrow.v[j]
-						if lint.blob <= -1 then
-							print("row["..y.."] previous-row interval had no blob "..lint.blob)
-							error'here'
-						end
-					
+			if #row > 0 then
+				for _,int in ipairs(row) do
+					for _,lint in ipairs(lastrow) do
 						if lint.x1 <= int.x2
 						and lint.x2 >= int.x1
 						then
+							assert(lint.blob)
 							-- touching - make sure they are in the same blob
 							if int.blob ~= lint.blob
 							and int.cl == lint.cl
 							then
-								local oldblobindex = int.blob
-								if oldblobindex > -1 then
-									local oldblob = blobs[oldblobindex]
-									-- remove the old blob
-									blobs:remove(oldblobindex)
-									-- decrement all intervals indexes of subsequent blobs
-									for k=oldblobindex,#blobs do
-										local blob = blobs[k]
-										for _,oint in ipairs(blob) do
-											oint.blob = k
-										end
-									end
-									
+								local oldblob = int.blob
+								if oldblob then
+									blobs:removeObject(oldblob)
 									for _,oint in ipairs(oldblob) do
 										oint.blob = lint.blob
 									end
-									blobs[lint.blob]:append(oldblob)
+									lint.blob:append(oldblob)
 								else
 									int.blob = lint.blob
-									blobs[lint.blob]:insert(int)
+									lint.blob:insert(int)
 								end
 							end
 						end
 					end
-					if int.blob == -1 then
+					if not int.blob then
 						local blob = Blob()
 						blobs:insert(blob)
 						blob:insert(int)
-						int.blob = #blobs
+						int.blob = blob
 						blob.cl = int.cl
 					end
 				end
-			end
-		end
-		for i=0,row.size-1 do
-			if row.v[i].blob <= -1 then
-				print("on row "..y.." failed to assign all intervals to blobs")
 			end
 		end
 		lastrow = row
