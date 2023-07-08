@@ -765,7 +765,6 @@ end
 
 
 local Blobs = class(Regions)
-Blobs.remove = table.remove
 
 function Blobs:toRects()
 	local rects = table()
@@ -855,6 +854,7 @@ function Image:getBlobs(ctx)
 	else
 		for k in pairs(blobs) do blobs[k] = nil end
 	end
+	local nextblobindex = 1
 
 	-- first find intervals in rows
 	local p = self.buffer
@@ -892,9 +892,10 @@ function Image:getBlobs(ctx)
 				for i=0,row.size-1 do
 					local int = row.v[i]
 					local blob = Blob()	-- blob will be a table of intervals, of {x1, x2, y, blob}
-					blobs:insert(blob)
+					blobs[nextblobindex] = blob
+					int.blob = nextblobindex
+					nextblobindex = nextblobindex + 1
 					blob:insert(int)
-					int.blob = #blobs
 					blob.cl = int.cl
 				end
 			end
@@ -921,14 +922,7 @@ function Image:getBlobs(ctx)
 								if oldblobindex > -1 then
 									local oldblob = blobs[oldblobindex]
 									-- remove the old blob
-									blobs:remove(oldblobindex)
-									-- decrement all intervals indexes of subsequent blobs
-									for k=oldblobindex,#blobs do
-										local blob = blobs[k]
-										for _,oint in ipairs(blob) do
-											oint.blob = k
-										end
-									end
+									blobs[oldblobindex] = nil
 
 									for _,oint in ipairs(oldblob) do
 										oint.blob = lint.blob
@@ -943,9 +937,10 @@ function Image:getBlobs(ctx)
 					end
 					if int.blob == -1 then
 						local blob = Blob()
-						blobs:insert(blob)
+						blobs[nextblobindex] = blob
+						int.blob = nextblobindex
+						nextblobindex = nextblobindex + 1
 						blob:insert(int)
-						int.blob = #blobs
 						blob.cl = int.cl
 					end
 				end
