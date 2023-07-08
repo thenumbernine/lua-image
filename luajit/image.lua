@@ -800,98 +800,52 @@ function Blob:drawToImage(image, color)
 	end
 end
 
-function Image:getBlobs(inside)
+function Image:getBlobs(classify)
 	-- flood fill non-background regions
 
 	-- first find intervals in rows
 	local rowregions = {}
+	-- 1-based for lua
+	for y=0,self.height-1 do
+		rowregions[y+1] = table()
+	end
 	local p = self.buffer
 	for y=0,self.height-1 do
+		local row = rowregions[y+1]
 		local x = 0
+		local cl = classify(p, self.channels)
 		repeat
-			while
-			not inside(p, self.channels)
-			and x < self.width
-			do
-				x = x + 1
-				p = p + self.channels
-			end
-
-			-- if we didn't get to the end without finding a blob ...
-			if x == self.width then break end
-
+			local cl2
 			local lhs = x
-			while inside(p, self.channels)
-			and x < self.width
-			do
+			repeat
 				x = x + 1
 				p = p + self.channels
-			end
-
-			rowregions[y] = rowregions[y] or table()
-			rowregions[y]:insert{x1=lhs, x2=x-1, y=y}	-- [x1, x2) = [incl, excl) = row of pixels inside the classifier
+				cl2 = classify(p, self.channels)
+			until x == self.width or cl ~= cl2
+			row:insert{x1=lhs, x2=x-1, y=y, cl=cl}	-- [x1, x2) = [incl, excl) = row of pixels inside the classifier
+			cl = cl2
 		until x == self.width
 	end
-
-	--[[ debug - don't merge rows -- looks like it works
-	do
-		local blobs = Blobs()
-		for y,regions in pairs(rowregions) do
-			for _,interval in ipairs(regions) do
-				local blob = Blob()
-				blobs:insert(blob)
-				interval.blob = blob
-				blob:insert(interval)
-			end
-		end
-		return blobs
-	end
-	--]]
 
 	-- next combine touching intervals in neighboring rows
 	local blobs = Blobs()
 	local lastrow
 	for y=0,self.height-1 do
-		local row = rowregions[y]
-
+		local row = rowregions[y+1]
 		-- if the previous row is empty then the next row will be filled with all new blobs
-		if not lastrow then
-			if row then
+		if not lastrow or #lastrow == 0 then
+			if #row > 0 then
 				for _,interval in ipairs(row) do
 					local blob = Blob()	-- blob will be a table of intervals, of {x1, x2, y, blob}
 					blobs:insert(blob)
-					interval.blob = blob
 					blob:insert(interval)
+					interval.blob = blob
+					blob.cl = interval.cl
 				end
 			end
-
 		-- last row exists, so merge previous row's blobs with this row's intervals
 		else
-			--[[
-			local i1 = 1	-- index in lastrow
-			local i2 = 1	-- index in current row
-			-- advance i1 until the end of lastrow is beyond the beginning of this row
-			while lastrow[i1][2] < row[i2][1]
-			and i1 <= #lastrow
-			do
-				i1 = i1 + 1
-			end
-			-- if we advanced to the end then bail, otherwise ...
-			if i1 <= #lastrow then
-				-- keep advancing until the beginning of lastrow is beyond the end of this row
-
-				-- advance until the end of this row is beyond the beginning of lastrow
-				while row[i2][2] < lastrow[i1][1]
-				and i2 <= #row
-				do
-					i2 = i2 + 1
-				end
-
-				while
-
-				error'bored'
-			--]]
-			if row then
+			if #row > 0 then
 				for _,int in ipairs(row) do
 					for _,lint in ipairs(lastrow) do
 						if lint.x1 <= int.x2
@@ -899,7 +853,9 @@ function Image:getBlobs(inside)
 						then
 							assert(lint.blob)
 							-- touching - make sure they are in the same blob
-							if int.blob ~= lint.blob then
+							if int.blob ~= lint.blob
+							and int.cl == lint.cl
+							then
 								local oldblob = int.blob
 								if oldblob then
 									blobs:removeObject(oldblob)
@@ -919,11 +875,11 @@ function Image:getBlobs(inside)
 						blobs:insert(blob)
 						blob:insert(int)
 						int.blob = blob
+						blob.cl = int.cl
 					end
 				end
 			end
 		end
-
 		lastrow = row
 	end
 
