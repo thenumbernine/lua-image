@@ -20,7 +20,7 @@ if ffi.os == 'Windows' then
 elseif ffi.os == 'OSX' then
 	PNGLoader.libpngVersion = '1.5.13'
 elseif ffi.os == 'Linux' then
-	PNGLoader.libpngVersion = '1.6.20'
+	PNGLoader.libpngVersion = '1.6.39'
 end
 
 -- replace the base loader which forced rgb
