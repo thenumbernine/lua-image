@@ -2,7 +2,7 @@ local ffi = require 'ffi'
 local sdl = require 'ffi.sdl'
 local img = require 'ffi.sdl_image'
 local class = require 'ext.class'
-local file = require 'ext.file'
+local path = require 'ext.path'
 
 local rgbaPixelFormat
 if ffi.os == 'Windows' then
@@ -26,7 +26,7 @@ function Image:init(w, h, ch, format, generator)
 	if generator then error("haven't got image source support yet") end
 	if type(w) == 'string' then
 		local filename = w
-		if not file(filename):exists() then error('file not found: '..filename) end
+		if not path(filename):exists() then error('file not found: '..filename) end
 
 		local loadSurface = img.IMG_Load(filename)
 		if loadSurface == nil then error("failed to load filename "..tostring(filename)) end

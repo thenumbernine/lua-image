@@ -8,14 +8,8 @@ local gcmem = require 'ext.gcmem'
 
 local PNGLoader = class(Loader)
 
--- TODO something that adapts better
+-- TODO just pick a version and stick with it? 
 if ffi.os == 'Windows' then
-	-- the malkia ufo header says 1.4.19 beta
-	--PNGLoader.libpngVersion = '1.4.19'
-	-- but 1.5.13 works
-	-- ... or does it? now I'm getting 'libpng error: Read Error'
-	--PNGLoader.libpngVersion = '1.5.13'
-	-- but I'm going to upgrade
 	PNGLoader.libpngVersion = '1.6.37'
 elseif ffi.os == 'OSX' then
 	PNGLoader.libpngVersion = '1.5.13'
