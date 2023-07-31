@@ -1,7 +1,7 @@
 local Loader = require 'image.luajit.loader'
 local class = require 'ext.class'
 local ffi = require 'ffi'
-local tiff = require 'ffi.tiff'
+local tiff = require 'ffi.req' 'tiff'
 local gcmem = require 'ext.gcmem'
 
 local TIFFLoader = class(Loader)

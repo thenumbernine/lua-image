@@ -1,9 +1,9 @@
 local Loader = require 'image.luajit.loader'
 local class = require 'ext.class'
 local ffi = require 'ffi'
-require 'ffi.c.string'	--memcpy
-local stdio = require 'ffi.c.stdio'	-- use stdio instead of ffi.C for browser compat
-local png = require 'ffi.png'
+require 'ffi.req' 'c.string'	--memcpy
+local stdio = require 'ffi.req' 'c.stdio'	-- use stdio instead of ffi.C for browser compat
+local png = require 'ffi.req' 'png'
 local gcmem = require 'ext.gcmem'
 
 local PNGLoader = class(Loader)

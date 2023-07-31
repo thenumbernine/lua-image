@@ -1,11 +1,11 @@
 local Loader = require 'image.luajit.loader'
 local class = require 'ext.class'
 local ffi = require 'ffi'
-local stdio = require 'ffi.c.stdio'	-- fopen, fclose, FILE ... use stdio instead of ffi.C for browser compat
+local stdio = require 'ffi.req' 'c.stdio'	-- fopen, fclose, FILE ... use stdio instead of ffi.C for browser compat
 --[[ using longjmp like in the libjpeg example code
-require 'ffi.c.setjmp'	-- jmp_buf ... hmm, can I use something else?  something that won't break Lua?
+require 'ffi.req' 'c.setjmp'	-- jmp_buf ... hmm, can I use something else?  something that won't break Lua?
 --]]
-local jpeg = require 'ffi.jpeg'
+local jpeg = require 'ffi.req' 'jpeg'
 local gcmem = require 'ext.gcmem'
 
 --[[ debugging

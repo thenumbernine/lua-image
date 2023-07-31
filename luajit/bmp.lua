@@ -5,7 +5,7 @@ I'm also saving images upside-down ... but I'm working with flipped buffers so i
 local Loader = require 'image.luajit.loader'
 local class = require 'ext.class'
 local ffi = require 'ffi'
-local stdio = require 'ffi.c.stdio'	-- use stdio instead of ffi.C for browser compat
+local stdio = require 'ffi.req' 'c.stdio'	-- use stdio instead of ffi.C for browser compat
 local gcmem = require 'ext.gcmem'
 
 ffi.cdef[[

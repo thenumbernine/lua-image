@@ -10,8 +10,8 @@ local class = require 'ext.class'
 local path = require 'ext.path'
 local gcmem = require 'ext.gcmem'
 local ffi = require 'ffi'
-require 'ffi.c.string'
-local fits = require 'ffi.fitsio'
+require 'ffi.req' 'c.string'
+local fits = require 'ffi.req' 'fitsio'
 
 local FITSLoader = class(Loader)
 

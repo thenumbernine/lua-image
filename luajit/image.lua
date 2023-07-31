@@ -33,6 +33,7 @@ local function getLoaderForFilename(filename)
 	return loader
 end
 
+-- TODO .format -> .type or .ctype?
 function Image:init(width,height,channels,format,generator)
 	channels = channels or 4
 	format = format or 'double'
