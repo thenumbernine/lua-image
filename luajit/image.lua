@@ -869,8 +869,9 @@ function Image:getBlobs(ctx)
 			repeat
 				x = x + 1
 				p = p + self.channels
+				if x == self.width then break end
 				cl2 = classify(p, self.channels)
-			until x == self.width or cl ~= cl2
+			until cl ~= cl2
 			local r = row:emplace_back()
 			-- [x1, x2) = [incl, excl) = row of pixels inside the classifier
 			r.x1 = lhs
