@@ -865,7 +865,7 @@ function Image:getBlobs(ctx)
 		local cl = classify(p, self.channels)
 		repeat
 			local cl2
-			local lhs = x
+			local xstart = x
 			repeat
 				x = x + 1
 				p = p + self.channels
@@ -874,7 +874,7 @@ function Image:getBlobs(ctx)
 			until cl ~= cl2
 			local r = row:emplace_back()
 			-- [x1, x2) = [incl, excl) = row of pixels inside the classifier
-			r.x1 = lhs
+			r.x1 = xstart
 			r.x2 = x - 1
 			r.y = y
 			r.cl = cl
