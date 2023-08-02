@@ -822,7 +822,7 @@ typedef struct {
 	int y;
 	int cl;		//classification
 	int blob;	//blob index
-} ImageBlobInterval_t;
+} ImageBlobRowInterval_t;
 ]]
 
 local vector = require 'ffi.cpp.vector'
@@ -838,7 +838,7 @@ function Image:getBlobs(ctx)
 	for j=1,self.height do
 		local row = rowregions[j]
 		if not row then
-			row = vector'ImageBlobInterval_t'
+			row = vector'ImageBlobRowInterval_t'
 			rowregions[j] = row
 		else
 			row:clear()
