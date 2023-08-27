@@ -338,6 +338,7 @@ function Image:l2norm()
 end
 
 -- args: x, y, width, height
+-- Maybe rename to 'clip' or 'crop', or is copy good?
 function Image:copy(args)
 	local argsx = math.floor(assert(args.x))
 	local argsy = math.floor(assert(args.y))
@@ -737,6 +738,66 @@ function Image:flip(dest)
 	return dest
 end
 
+function Image:getZealousCropRect()
+	assert(self.channels == 4, "zealous crop only works with alpha channels")
+
+	-- find the first and last cols and rows with content
+	local results = {}
+	for _,info in ipairs{
+		{0,self.width-1,1, 'xmin'},
+		{self.width-1,0,-1, 'xmax'},
+	} do
+		local istart, iend, istep, ifield = table.unpack(info)
+		for i=istart,iend,istep do
+			local found
+			for j=0,self.height-1 do
+				if self.buffer[3 + 4 * (i + self.width * j)] ~= 0 then
+					found = true
+					break
+				end
+			end
+			if found then
+				results[ifield] = i
+				break
+			end
+		end
+	end
+
+	-- same thing with rows to determine max row
+	for _,info in ipairs{
+		{0,self.height-1,1, 'ymin'},
+		{self.height-1,0,-1, 'ymax'},
+	} do
+		local jstart, jend, jstep, jfield = table.unpack(info)
+		for j=jstart,jend,jstep do
+			local found
+			for i=0,self.width-1 do
+				if self.buffer[3 + 4 * (i + self.width * j)] ~= 0 then
+					found = true
+					break
+				end
+			end
+			if found then
+				results[jfield] = j
+				break
+			end
+		end
+	end
+
+	return results
+end
+
+function Image:zealousCrop()
+	local results = self:getZealousCropRect()
+	return self:copy{
+		x = results.xmin,
+		y = results.ymin,
+		width = results.xmax - results.xmin + 1,
+		height = results.ymax - results.ymin + 1,
+	}
+end
+
+
 
 ---------------- regions and blobs ----------------
 -- maybe this should be its own file? maybe its own library?
@@ -775,7 +836,7 @@ local Blobs = class(Regions)
 
 function Blobs:toRects()
 	local rects = table()
-	for _,blob in ipairs(self) do
+	for _,blob in pairs(self) do
 		local rect = Rectangle()
 		do
 			local int = blob[1]
@@ -801,7 +862,7 @@ Blob.init = table.init
 Blob.insert = table.insert
 Blob.append = table.append
 
-function Blob:drawToImage(image, color)
+function Blob:drawMaskToImage(image, color)
 	assert(image.channels >= 3)
 	for _,row in ipairs(self) do
 		local y = row.y
@@ -819,6 +880,34 @@ function Blob:drawToImage(image, color)
 			end
 		end
 	end
+end
+
+function Blob:copyToImage(dstimg, srcimg)
+	assert(dstimg.channels >= 3)
+	assert(srcimg.width == dstimg.width)
+	assert(srcimg.height == dstimg.height)
+	for _,row in ipairs(self) do
+		local y = row.y
+		if y >= 0 and y < dstimg.height then
+			if row.x1 < dstimg.width and row.x2 >= 0 then
+				for x=math.max(0, row.x1), math.min(row.x2, dstimg.width-1) do
+					local index = x + dstimg.width * y
+					for ch=0,dstimg.channels-1 do
+						dstimg.buffer[ch + dstimg.channels * index] = srcimg.buffer[ch + srcimg.channels * index]
+					end
+				end
+			end
+		end
+	end
+end
+
+
+function Blob:calcArea()
+	local area = 0
+	for _,row in ipairs(self) do
+		area = area + (row.x2 - row.x1 + 1)
+	end
+	return area
 end
 
 ffi.cdef[[
@@ -974,9 +1063,9 @@ function Image:drawRegions(regions)
 			self.buffer[3 + self.channels * i] = 255
 		end
 	end
-	for _,region in ipairs(regions) do
+	for _,region in pairs(regions) do
 		local color = (vec3d(math.random(), math.random(), math.random()):normalize() * 255):map(math.floor)
-		region:drawToImage(self, color)
+		region:drawMaskToImage(self, color)
 	end
 	return self
 end
