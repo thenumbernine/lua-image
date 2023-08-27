@@ -789,12 +789,16 @@ end
 
 function Image:zealousCrop()
 	local results = self:getZealousCropRect()
-	return self:copy{
-		x = results.xmin,
-		y = results.ymin,
-		width = results.xmax - results.xmin + 1,
-		height = results.ymax - results.ymin + 1,
-	}
+	if results.xmin and results.xmax and results.ymin and results.ymax then
+		return self:copy{
+			x = results.xmin,
+			y = results.ymin,
+			width = results.xmax - results.xmin + 1,
+			height = results.ymax - results.ymin + 1,
+		}
+	else
+		return self:clone():clear()
+	end
 end
 
 
