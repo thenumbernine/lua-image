@@ -75,19 +75,6 @@ function Image:clear()
 	return self
 end
 
-function Image:setChannels(newChannels)
-	local dst = Image(self.width, self.height, newChannels, self.format)
-	for j=0,self.height-1 do
-		for i=0,self.width-1 do
-			local index = i + self.width * j
-			for ch=0,math.min(self.channels,newChannels)-1 do
-				dst.buffer[ch+newChannels*index] = self.buffer[ch+self.channels*index]
-			end
-		end
-	end
-	return dst
-end
-
 local formatInfo = {
 	['char'] = {bias=128, scale=255},
 	['signed char'] = {bias=128, scale=255},
@@ -105,6 +92,25 @@ local formatInfo = {
 	['int32_t'] = {bias=2^31, scale=2^32},
 	['uint32_t'] = {scale=2^32},
 }
+
+function Image:setChannels(newChannels)
+	local dst = Image(self.width, self.height, newChannels, self.format)
+	local minCh = math.min(self.channels, newChannels)
+	local formatInfo = formatInfo[self.format]
+	local fillvalue = formatInfo and (formatInfo.scale - (formatInfo.bias or 0)) or 1
+	for j=0,self.height-1 do
+		for i=0,self.width-1 do
+			local index = i + self.width * j
+			for ch=0,minCh-1 do
+				dst.buffer[ch + newChannels * index] = self.buffer[ch + self.channels * index]
+			end
+			for ch=minCh,newChannels-1 do
+				dst.buffer[ch + newChannels * index] = fillvalue
+			end
+		end
+	end
+	return dst
+end
 
 function Image:setFormat(newFormat)
 	local dst = Image(self.width, self.height, self.channels, newFormat)

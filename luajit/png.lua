@@ -8,7 +8,7 @@ local gcmem = require 'ext.gcmem'
 
 local PNGLoader = class(Loader)
 
--- TODO just pick a version and stick with it? 
+-- TODO just pick a version and stick with it?
 if ffi.os == 'Windows' then
 	PNGLoader.libpngVersion = '1.6.37'
 elseif ffi.os == 'OSX' then
@@ -44,7 +44,6 @@ end)
 function PNGLoader:load(filename)
 	assert(filename, "expected filename")
 	return select(2, assert(xpcall(function()
-
 
 		local header = gcmem.new('char',8)	-- 8 is the maximum size that can be checked
 
@@ -123,6 +122,7 @@ function PNGLoader:load(filename)
 	end)))
 end
 
+-- https://cplusplus.com/forum/general/125209/
 function PNGLoader:save(args)
 	-- args:
 	local filename = assert(args.filename, "expected filename")
@@ -131,49 +131,76 @@ function PNGLoader:save(args)
 	local channels = assert(args.channels, "expected channels")
 	local data = assert(args.data, "expected data")
 
-	local fp = stdio.fopen(filename, 'wb')
-	if fp == nil then error("failed to open file "..filename.." for writing") end
+	local fp
+	local png_pp = ffi.new'png_structp[1]'
+	local info_pp = ffi.new'png_infop[1]'
+	local res, err = xpcall(function()
+		fp = stdio.fopen(filename, 'wb')
+		if fp == nil then error("failed to open file "..filename.." for writing") end
 
-	-- initialize stuff
-	local png_ptr = png.png_create_write_struct(self.libpngVersion, nil, nil, nil)
+		-- initialize stuff
+		local png_ptr = png.png_create_write_struct(self.libpngVersion, nil, nil, nil)
+		if png_ptr == nil then
+			error "[write_png_file] png_create_write_struct failed"
+		end
+		png_pp[0] = png_ptr
 
-	if png_ptr == nil then
-		error "[write_png_file] png_create_write_struct failed"
+		local info_ptr = png.png_create_info_struct(png_ptr)
+		if info_ptr == nil then
+			error("[write_png_file] png_create_info_struct failed")
+		end
+		info_pp[0] = info_ptr
+
+		png.png_init_io(png_ptr, fp)
+
+		--png.png_set_compression_level(png_ptr, png.Z_BEST_COMPRESSION)
+
+		png.png_set_IHDR(
+			png_ptr,
+			info_ptr,
+			width,
+			height,
+			8,
+			({
+				[3] = png.PNG_COLOR_TYPE_RGB,
+				[4] = png.PNG_COLOR_TYPE_RGB_ALPHA,
+			})[channels] or error("got unknown channels "..tostring(channels)),
+			png.PNG_INTERLACE_NONE,
+			png.PNG_COMPRESSION_TYPE_BASE,
+			png.PNG_FILTER_TYPE_BASE)
+		png.png_write_info(png_ptr, info_ptr)
+
+		local rowptrs = gcmem.new('unsigned char *', height)
+		for y=0,height-1 do
+			-- [[ do I need to allocate these myself?
+			rowptrs[y] = data + channels*width*y
+			--]]
+			--[[ or does png_write_end / png_destroy_write_struct free them?
+			-- and why does the sample code allocate 2x its requirement?
+			rowptrs[y] = ffi.C.malloc(2 * channels * width)
+			--rowptrs[y] = ffi.C.malloc(channels * width)
+			ffi.copy(rowptrs[y], data + channels*width*y, channels * width)
+			--]]
+		end
+		png.png_write_image(png_ptr, rowptrs)
+		png.png_write_end(png_ptr, info_ptr)
+	end, function(err)
+		return err..'\n'..debug.traceback()
+	end)
+
+	-- cleanup
+
+	if png_pp[0] ~= nil then
+		-- TODO if info_pp[0] == null then do I have to pass nil instead of info_pp ?
+		png.png_destroy_write_struct(png_pp, info_pp)
 	end
 
-	local info_ptr = png.png_create_info_struct(png_ptr)
-	if info_ptr == nil then
-		error("[write_png_file] png_create_info_struct failed")
+	if fp ~= nil then
+		stdio.fclose(fp)
 	end
 
-	png.png_init_io(png_ptr, fp)
-
-	png.png_set_IHDR(
-		png_ptr,
-		info_ptr,
-		width,
-		height,
-		8,
-		({
-			[3] = png.PNG_COLOR_TYPE_RGB,
-			[4] = png.PNG_COLOR_TYPE_RGB_ALPHA,
-		})[channels] or error("got unknown channels "..tostring(channels)),
-		png.PNG_INTERLACE_NONE,
-		png.PNG_COMPRESSION_TYPE_BASE,
-		png.PNG_FILTER_TYPE_BASE)
-
-	png.png_write_info(png_ptr, info_ptr)
-
-	local rowptrs = gcmem.new('unsigned char *', height)
-	for y=0,height-1 do
-		rowptrs[y] = data + channels*width*y
-	end
-	png.png_write_image(png_ptr, rowptrs)
-
-	png.png_write_end(png_ptr, nil)
-
-	-- close file
-	stdio.fclose(fp)
+	-- rethrow?
+	if err then error(err) end
 end
 
 return PNGLoader
