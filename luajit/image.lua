@@ -388,6 +388,30 @@ function Image:paste(args)
 	return self:clone():pasteInto(args)
 end
 
+--[[
+tile an image
+	w = new width
+	h = new height
+	x = offset x to start tiling the upper-left corner.  default = 0
+	y = offset y to start tiling.  default = 0
+--]]
+function Image:tile(w, h, x, y)
+	x = x or 0
+	y = y or 0
+	local result = Image(w, h, self.channels, self.format)
+	for dsty=0,h-1 do
+		local srcy = (dsty - y) % self.height
+		for dstx=0,w-1 do
+			local srcx = (dstx - x) % self.width
+			for ch=0,self.channels-1 do
+				result.buffer[ch+self.channels*(dstx+result.width*dsty)]
+					= self.buffer[ch+self.channels*(srcx+self.width*srcy)]
+			end
+		end
+	end
+	return result
+end
+
 Image.gradientKernels = {
 	simple = Image(2,1,1,'double',{-1,1}),
 	Sobel = Image(3,3,1,'double',{-1,0,1,-2,0,2,-1,0,1})/4,
