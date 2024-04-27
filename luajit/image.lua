@@ -948,7 +948,7 @@ typedef struct {
 } ImageBlobRowInterval_t;
 ]]
 
-local vector = require 'ffi.cpp.vector'
+local vector = require 'ffi.cpp.vector-lua'
 
 function Image:getBlobs(ctx)
 	local classify = assert(ctx.classify)
