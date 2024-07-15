@@ -1,12 +1,11 @@
 local Loader = require 'image.luajit.loader'
-local class = require 'ext.class'
 local ffi = require 'ffi'
 require 'ffi.req' 'c.string'	--memcpy
 local stdio = require 'ffi.req' 'c.stdio'	-- use stdio instead of ffi.C for browser compat
 local png = require 'ffi.req' 'png'
 local gcmem = require 'ext.gcmem'
 
-local PNGLoader = class(Loader)
+local PNGLoader = Loader:subclass()
 
 -- TODO just pick a version and stick with it?
 if ffi.os == 'Windows' then

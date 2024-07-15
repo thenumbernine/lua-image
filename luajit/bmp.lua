@@ -3,7 +3,6 @@ NOTICE the BMP save/load operates as BGR
 I'm also saving images upside-down ... but I'm working with flipped buffers so it's okay?
 --]]
 local Loader = require 'image.luajit.loader'
-local class = require 'ext.class'
 local ffi = require 'ffi'
 local stdio = require 'ffi.req' 'c.stdio'	-- use stdio instead of ffi.C for browser compat
 local gcmem = require 'ext.gcmem'
@@ -45,7 +44,7 @@ typedef struct tagBITMAPINFOHEADER BITMAPINFOHEADER;
 #pragma pack(0)
 ]]
 
-local BMPLoader = class(Loader)
+local BMPLoader = Loader:subclass()
 
 function BMPLoader:load(filename)
 	local file = stdio.fopen(filename, 'rb')

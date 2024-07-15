@@ -1,9 +1,8 @@
 local Loader = require 'image.luajit.loader'
-local class = require 'ext.class'
 local ffi = require 'ffi'
 local gif = require 'ffi.req' 'gif'
 
-local GIFLoader = class(Loader)
+local GIFLoader = Loader:subclass()
 
 function GIFLoader:load(filename, imageIndex)
 	assert(filename, "expected filename")

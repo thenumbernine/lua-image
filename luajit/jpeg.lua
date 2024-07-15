@@ -1,5 +1,4 @@
 local Loader = require 'image.luajit.loader'
-local class = require 'ext.class'
 local ffi = require 'ffi'
 local stdio = require 'ffi.req' 'c.stdio'	-- fopen, fclose, FILE ... use stdio instead of ffi.C for browser compat
 --[[ using longjmp like in the libjpeg example code
@@ -18,7 +17,7 @@ local jpeg = setmetatable({}, {
 })
 --]]
 
-local JPEGLoader = class(Loader)
+local JPEGLoader = Loader:subclass()
 
 ffi.cdef[[
 struct my_error_mgr {

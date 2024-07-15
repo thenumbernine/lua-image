@@ -6,14 +6,13 @@ Which means technically it shouldn't have 3 channels.
 If you try to save a 3-channel image via FITS, you'll get interleaved garbage.
 --]]
 local Loader = require 'image.luajit.loader'
-local class = require 'ext.class'
 local path = require 'ext.path'
 local gcmem = require 'ext.gcmem'
 local ffi = require 'ffi'
 require 'ffi.req' 'c.string'
 local fits = require 'ffi.req' 'fitsio'
 
-local FITSLoader = class(Loader)
+local FITSLoader = Loader:subclass()
 
 -- overload the parent class functionality
 -- don't clamp or change format
