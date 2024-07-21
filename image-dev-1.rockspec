@@ -1,7 +1,7 @@
 package = "image"
 version = "dev-1"
 source = {
-	url = "git+https://github.com/thenumbernine/lua-image.git"
+	url = "git+https://github.com/thenumbernine/lua-image"
 }
 description = {
 	summary = "LuaJIT image library",
