@@ -11,7 +11,7 @@ local PNGLoader = Loader:subclass()
 if ffi.os == 'Windows' then
 	PNGLoader.libpngVersion = '1.6.37'
 elseif ffi.os == 'OSX' then
-	PNGLoader.libpngVersion = '1.5.13'
+	PNGLoader.libpngVersion = '1.6.43'
 elseif ffi.os == 'Linux' then
 	PNGLoader.libpngVersion = '1.6.39'
 end
