@@ -33,6 +33,12 @@ local function getLoaderForFilename(filename)
 	return loader
 end
 
+local function packptr(n, ptr, value, ...)
+	if n <= 0 then return end
+	ptr[0] = value or 0
+	return packptr(n-1, ptr+1, ...)
+end
+
 -- TODO .format -> .type or .ctype?
 function Image:init(width,height,channels,format,generator)
 	channels = channels or 4
@@ -55,10 +61,12 @@ function Image:init(width,height,channels,format,generator)
 		if type(generator) == 'function' then
 			for y=0,self.height-1 do
 				for x=0,self.width-1 do
-					local values = {generator(x,y)}
-					for ch=0,self.channels-1 do
-						self.buffer[ch + self.channels * (x + self.width * y)] = values[ch+1] or 0
-					end
+					-- 'unpackptr' is found in /gl/get.lua, maybe I should put them both somewhere else ...
+					packptr(
+						self.channels,
+						self.buffer + self.channels * (x + self.width * y),
+						generator(x,y)
+					)
 				end
 			end
 		elseif type(generator) == 'table' then
