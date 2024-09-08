@@ -1,6 +1,7 @@
 local Loader = require 'image.luajit.loader'
 local ffi = require 'ffi'
-require 'ffi.req' 'c.string'	--memcpy
+local asserteq = require 'ext.assert'.eq
+local assertindex = require 'ext.assert'.index
 local stdio = require 'ffi.req' 'c.stdio'	-- use stdio instead of ffi.C for browser compat
 local png = require 'ffi.req' 'png'
 local gcmem = require 'ext.gcmem'
@@ -77,24 +78,32 @@ function PNGLoader:load(filename)
 		local width = png.png_get_image_width(png_ptr, info_ptr)
 		local height = png.png_get_image_height(png_ptr, info_ptr)
 		local colorType = png.png_get_color_type(png_ptr, info_ptr)
-		local bit_depth = png.png_get_bit_depth(png_ptr, info_ptr)
-		local colorTypePalette = png.PNG_COLOR_MASK_PALETTE + png.PNG_COLOR_MASK_COLOR
+		local bitDepth = png.png_get_bit_depth(png_ptr, info_ptr)
+		local colorTypePalette = bit.bor(png.PNG_COLOR_MASK_PALETTE, png.PNG_COLOR_MASK_COLOR)
 		if colorType ~= png.PNG_COLOR_TYPE_RGB
 		and colorType ~= png.PNG_COLOR_TYPE_RGB_ALPHA
 		and colorType ~= colorTypePalette
 		then
-			error("expected colorType to be PNG_COLOR_TYPE_RGB or PNG_COLOR_TYPE_RGB_ALPHA, got "..colorType)
+			error("expected colorType to be PNG_COLOR_TYPE_RGB or PNG_COLOR_TYPE_RGB_ALPHA, got "..tostring(colorType))
 		end
-		assert(bit_depth == 8, "can only handle 8-bit images at the moment")
 
-		local number_of_passes = png.png_set_interlace_handling(png_ptr)
+		if not (bitDepth == 1
+		or bitDepth == 2
+		or bitDepth == 4
+		or bitDepth % 8 == 0)
+		then
+			error("got a bit depth I can't support: "..tostring(bitDepth))
+		end
+
+		--local number_of_passes = png.png_set_interlace_handling(png_ptr)
 		-- looks like png 1.5 needed this but png 1.6 doesn't
 		--png.png_read_update_info(png_ptr, info_ptr)
 
 		-- read file
 
+		-- TODO replace png_byte etc in the header, lighten the load on luajit ffi
 		assert(ffi.sizeof('png_byte') == 1)
-		local row_pointers = png.png_get_rows(png_ptr, info_ptr)
+		local rowPointer = png.png_get_rows(png_ptr, info_ptr)
 		local channels = ({
 				[png.PNG_COLOR_TYPE_RGB] = 3,
 				[png.PNG_COLOR_TYPE_RGB_ALPHA] = 4,
@@ -102,11 +111,34 @@ function PNGLoader:load(filename)
 			})[colorType] or error('got unknown colorType')
 		local data = gcmem.new('unsigned char', width * height * channels)
 		-- read data from rows directly
-		for y=0,height-1 do
-			ffi.C.memcpy(ffi.cast('unsigned char*', data) + channels*width*y, row_pointers[y], channels*width)
+		if bitDepth < 8 then
+			asserteq(channels, 1, "I don't support channels>1 for bitDepth<8")
+			local bitMask = assertindex({
+				[1] = 1,
+				[2] = 3,
+				[4] = 0xf,
+				[8] = 0xff,
+			}, bitDepth)
+			local dst = data
+			for y=0,height-1 do
+				local src = ffi.cast('png_byte*', rowPointer[y])
+				local bitOfs = 0
+				for x=0,width-1 do
+					dst[0] = bit.band(bitMask, bit.rshift(src[0], 8 - bitOfs - bitDepth))
+					dst = dst + 1
+					bitOfs = bitOfs + bitDepth
+					if bitOfs >= 8 then
+						bitOfs = bitOfs - 8
+						src = src + 1
+					end
+				end
+			end
+		else
+			for y=0,height-1 do
+				ffi.copy(ffi.cast('unsigned char*', data) + channels*width*y, rowPointer[y], channels*width)
+			end
 		end
-
-		-- TODO free row_pointers?
+		-- TODO free rowPointer?
 
 		stdio.fclose(fp)
 
