@@ -20,7 +20,11 @@ end
 -- replace the base loader which forced rgb
 -- instead, allow for rgba
 function PNGLoader:prepareImage(image)
-	if image.channels ~= 3 and image.channels ~= 4 then
+	if not (
+		image.channels == 1
+		or image.channels == 3
+		or image.channels == 4
+	) then
 		image = image:rgb()
 	end
 	if image.format == 'float' or image.format == 'double' then
@@ -29,7 +33,14 @@ function PNGLoader:prepareImage(image)
 	if image.format ~= 'unsigned char' then
 		image = image:setFormat'unsigned char'
 	end
-	assert(image.channels == 3 or image.channels == 4, "expected 3 or 4 channels")
+
+	assert(
+		image.channels == 1
+			or image.channels == 3
+			or image.channels == 4,
+		"expected 3 or 4 channels"
+	)
+
 	return image
 end
 
@@ -193,6 +204,7 @@ function PNGLoader:save(args)
 			height,
 			8,
 			({
+				[1] = png.PNG_COLOR_TYPE_GRAY,
 				[3] = png.PNG_COLOR_TYPE_RGB,
 				[4] = png.PNG_COLOR_TYPE_RGB_ALPHA,
 			})[channels] or error("got unknown channels "..tostring(channels)),
