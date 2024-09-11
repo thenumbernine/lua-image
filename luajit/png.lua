@@ -93,6 +93,7 @@ function PNGLoader:load(filename)
 		local colorTypePalette = bit.bor(png.PNG_COLOR_MASK_PALETTE, png.PNG_COLOR_MASK_COLOR)
 		if colorType ~= png.PNG_COLOR_TYPE_RGB
 		and colorType ~= png.PNG_COLOR_TYPE_RGB_ALPHA
+		and colorType ~= png.PNG_COLOR_TYPE_GRAY
 		and colorType ~= colorTypePalette
 		then
 			error("expected colorType to be PNG_COLOR_TYPE_RGB or PNG_COLOR_TYPE_RGB_ALPHA, got "..tostring(colorType))
@@ -116,9 +117,10 @@ function PNGLoader:load(filename)
 		assert(ffi.sizeof('png_byte') == 1)
 		local rowPointer = png.png_get_rows(png_ptr, info_ptr)
 		local channels = ({
+				[colorTypePalette] = 1,
+				[png.PNG_COLOR_TYPE_GRAY] = 1,
 				[png.PNG_COLOR_TYPE_RGB] = 3,
 				[png.PNG_COLOR_TYPE_RGB_ALPHA] = 4,
-				[colorTypePalette] = 1,
 			})[colorType] or error('got unknown colorType')
 		local data = gcmem.new('unsigned char', width * height * channels)
 		-- read data from rows directly
