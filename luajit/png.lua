@@ -18,8 +18,19 @@ elseif ffi.os == 'Linux' then
 	PNGLoader.libpngVersion = '1.6.39'
 end
 
+--[[
+http://www.libpng.org/pub/png/spec/1.2/PNG-Chunks.html
+PNG options:
+
+Color Type        Allowed Bit Depths  Interpretation
+0 GRAY			  1,2,4,8,16          Each pixel is a grayscale sample.
+2 RGB             8,16                Each pixel is an R,G,B triple.
+3 PALETTE         1,2,4,8             Each pixel is a palette index; a PLTE chunk must appear.
+4 GRAY_ALPHA/GA   8,16                Each pixel is a grayscale sample, followed by an alpha sample.
+6 RGB_ALPHA/RGBA  8,16                Each pixel is an R,G,B triple, followed by an alpha sample.
 -- replace the base loader which forced rgb
 -- instead, allow for rgba
+--]]
 function PNGLoader:prepareImage(image)
 	if not (
 		image.channels == 1
@@ -31,15 +42,25 @@ function PNGLoader:prepareImage(image)
 	if image.format == 'float' or image.format == 'double' then
 		image = image:clamp(0,1)
 	end
-	if image.format ~= 'unsigned char' then
-		image = image:setFormat'unsigned char'
+
+	if image.palette then
+		-- png 16bpp doesn't work on palette image types
+		-- TODO if we do have to convert an indexed >8bpp image here then we should at least warn, if not error, because it will be destructive
+		if ffi.sizeof(image.format) > 1 then
+			print('WARNING: converting indexed texture from >8bpp to 8bpp, something bad will probably happen')
+		end
+	else
+		-- all non-palette image types can be 1,2,4,8,16 bpp
+		if ffi.sizeof(image.format) > 2 then
+			image = image:setFormat'unsigned char'
+		end
 	end
 
 	assert(
 		image.channels == 1
-			or image.channels == 3
-			or image.channels == 4,
-		"expected 3 or 4 channels"
+		or image.channels == 3
+		or image.channels == 4,
+		"expected 1, 3 or 4 channels"
 	)
 
 	return image
@@ -52,8 +73,6 @@ end)
 local warningCallback = ffi.cast('png_error_ptr', function(struct, msg)
 	print('png warning:', ffi.string(msg))
 end)
-
-local colorTypePalette = bit.bor(png.PNG_COLOR_MASK_PALETTE, png.PNG_COLOR_MASK_COLOR)
 
 function PNGLoader:load(filename)
 	assert(filename, "expected filename")
@@ -95,20 +114,21 @@ function PNGLoader:load(filename)
 		local height = png.png_get_image_height(png_pp[0], info_pp[0])
 		local colorType = png.png_get_color_type(png_pp[0], info_pp[0])
 		local bitDepth = png.png_get_bit_depth(png_pp[0], info_pp[0])
-		if colorType ~= png.PNG_COLOR_TYPE_RGB
+		if colorType ~= png.PNG_COLOR_TYPE_GRAY
+		and colorType ~= png.PNG_COLOR_TYPE_RGB
+		and colorType ~= png.PNG_COLOR_TYPE_PALETTE
+		and colorType ~= png.PNG_COLOR_TYPE_GRAY_ALPHA
 		and colorType ~= png.PNG_COLOR_TYPE_RGB_ALPHA
-		and colorType ~= png.PNG_COLOR_TYPE_GRAY
-		and colorType ~= colorTypePalette
 		then
-			error("expected colorType to be PNG_COLOR_TYPE_RGB or PNG_COLOR_TYPE_RGB_ALPHA, got "..tostring(colorType))
+			error("got unknown colorType: "..tostring(colorType))
 		end
 
 		if not (bitDepth == 1
-		or bitDepth == 2
-		or bitDepth == 4
-		or bitDepth % 8 == 0)
-		then
-			error("got a bit depth I can't support: "..tostring(bitDepth))
+			or bitDepth == 2
+			or bitDepth == 4
+			or bitDepth % 8 == 0
+		) then
+			error("got unknown bit depth: "..tostring(bitDepth))
 		end
 
 		--local number_of_passes = png.png_set_interlace_handling(png_pp[0])
@@ -121,12 +141,21 @@ function PNGLoader:load(filename)
 		assert(ffi.sizeof('png_byte') == 1)
 		local rowPointer = png.png_get_rows(png_pp[0], info_pp[0])
 		local channels = ({
-				[colorTypePalette] = 1,
-				[png.PNG_COLOR_TYPE_GRAY] = 1,
-				[png.PNG_COLOR_TYPE_RGB] = 3,
-				[png.PNG_COLOR_TYPE_RGB_ALPHA] = 4,
-			})[colorType] or error('got unknown colorType')
-		local data = gcmem.new('unsigned char', width * height * channels)
+			[png.PNG_COLOR_TYPE_GRAY] = 1,
+			[png.PNG_COLOR_TYPE_PALETTE] = 1,
+			[png.PNG_COLOR_TYPE_GRAY_ALPHA] = 2,
+			[png.PNG_COLOR_TYPE_RGB] = 3,
+			[png.PNG_COLOR_TYPE_RGB_ALPHA] = 4,
+		})[colorType] or error('got unknown colorType')
+		local format
+		if bitDepth <= 8 then
+			format = 'uint8_t'
+		elseif bitDepth == 16 then
+			format = 'uint16_t'
+		else
+			error("got unknown bit depth: "..tostring(bitDepth))
+		end
+		local data = gcmem.new(format, width * height * channels)
 		-- read data from rows directly
 		if bitDepth < 8 then
 			asserteq(channels, 1, "I don't support channels>1 for bitDepth<8")
@@ -151,13 +180,14 @@ function PNGLoader:load(filename)
 				end
 			end
 		else
+			local rowSize = channels*width*ffi.sizeof(format)
 			for y=0,height-1 do
-				ffi.copy(ffi.cast('unsigned char*', data) + channels*width*y, rowPointer[y], channels*width)
+				ffi.copy(ffi.cast(format..'*', data) + y * rowSize, rowPointer[y], rowSize)
 			end
 		end
 
 		local palette
-		if colorType == colorTypePalette then
+		if colorType == png.PNG_COLOR_TYPE_PALETTE then
 			local pal_pp = ffi.new'png_color*[1]'
 			local numPal = ffi.new'int[1]'
 			if 0 == png.png_get_PLTE(png_pp[0], info_pp[0], pal_pp, numPal) then
@@ -165,6 +195,7 @@ function PNGLoader:load(filename)
 			end
 			palette = {}
 			for i=1,numPal[0] do
+				-- for now palettes are tables of entries of {r,g,b} from 0-255
 				palette[i] = {
 					pal_pp[0][i-1].red,
 					pal_pp[0][i-1].green,
@@ -187,6 +218,7 @@ function PNGLoader:load(filename)
 			width = width,
 			height = height,
 			channels = channels,
+			format = format,
 			palette = palette,
 		}
 	end, function(err)
@@ -201,8 +233,10 @@ function PNGLoader:save(args)
 	local width = assert(args.width, "expected width")
 	local height = assert(args.height, "expected height")
 	local channels = assert(args.channels, "expected channels")
+	local format = assert(args.format, "expected format")
 	local data = assert(args.data, "expected data")
-	local palette = args.palette	 -- optiona, table of N tables of 3 values for RGB constrained to 0-255 for now
+	local palette = args.palette	 -- optional, table of N tables of 3 values for RGB constrained to 0-255 for now
+
 	local fp
 	local png_pp = ffi.new'png_structp[1]'
 	local info_pp = ffi.new'png_infop[1]'
@@ -232,11 +266,12 @@ function PNGLoader:save(args)
 			info_ptr,
 			width,
 			height,
-			8,
+			bit.lshift(ffi.sizeof(format), 3),
 			({
 				[1] = palette
-					and colorTypePalette
+					and png.PNG_COLOR_TYPE_PALETTE
 					or png.PNG_COLOR_TYPE_GRAY,
+				[2] = png.PNG_COLOR_TYPE_GRAY_ALPHA,
 				[3] = png.PNG_COLOR_TYPE_RGB,
 				[4] = png.PNG_COLOR_TYPE_RGB_ALPHA,
 			})[channels] or error("got unknown channels "..tostring(channels)),
