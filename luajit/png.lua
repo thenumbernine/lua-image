@@ -1,6 +1,7 @@
 local Loader = require 'image.luajit.loader'
 local ffi = require 'ffi'
 local asserteq = require 'ext.assert'.eq
+local assertle = require 'ext.assert'.le
 local assertindex = require 'ext.assert'.index
 local stdio = require 'ffi.req' 'c.stdio'	-- use stdio instead of ffi.C for browser compat
 local png = require 'ffi.req' 'png'
@@ -52,6 +53,8 @@ local warningCallback = ffi.cast('png_error_ptr', function(struct, msg)
 	print('png warning:', ffi.string(msg))
 end)
 
+local colorTypePalette = bit.bor(png.PNG_COLOR_MASK_PALETTE, png.PNG_COLOR_MASK_COLOR)
+
 function PNGLoader:load(filename)
 	assert(filename, "expected filename")
 	return select(2, assert(xpcall(function()
@@ -70,27 +73,28 @@ function PNGLoader:load(filename)
 		end
 
 		-- initialize stuff
-		local png_ptr = png.png_create_read_struct(self.libpngVersion, nil, errorCallback, warningCallback)
+		local png_pp = ffi.new'png_structp[1]'
+		png_pp[0] = png.png_create_read_struct(self.libpngVersion, nil, errorCallback, warningCallback)
 
-		if png_ptr == nil then
+		if png_pp[0] == nil then
 			error("[read_png_file] png_create_read_struct failed")
 		end
 
-		local info_ptr = png.png_create_info_struct(png_ptr)
-		if info_ptr == nil then
+		local info_pp = ffi.new'png_infop[1]'
+		info_pp[0] = png.png_create_info_struct(png_pp[0])
+		if info_pp[0] == nil then
 			error("[read_png_file] png_create_info_struct failed")
 		end
 
-		png.png_init_io(png_ptr, fp)
-		png.png_set_sig_bytes(png_ptr, 8)
+		png.png_init_io(png_pp[0], fp)
+		png.png_set_sig_bytes(png_pp[0], 8)
 
-		png.png_read_png(png_ptr, info_ptr, png.PNG_TRANSFORM_IDENTITY, nil)
+		png.png_read_png(png_pp[0], info_pp[0], png.PNG_TRANSFORM_IDENTITY, nil)
 
-		local width = png.png_get_image_width(png_ptr, info_ptr)
-		local height = png.png_get_image_height(png_ptr, info_ptr)
-		local colorType = png.png_get_color_type(png_ptr, info_ptr)
-		local bitDepth = png.png_get_bit_depth(png_ptr, info_ptr)
-		local colorTypePalette = bit.bor(png.PNG_COLOR_MASK_PALETTE, png.PNG_COLOR_MASK_COLOR)
+		local width = png.png_get_image_width(png_pp[0], info_pp[0])
+		local height = png.png_get_image_height(png_pp[0], info_pp[0])
+		local colorType = png.png_get_color_type(png_pp[0], info_pp[0])
+		local bitDepth = png.png_get_bit_depth(png_pp[0], info_pp[0])
 		if colorType ~= png.PNG_COLOR_TYPE_RGB
 		and colorType ~= png.PNG_COLOR_TYPE_RGB_ALPHA
 		and colorType ~= png.PNG_COLOR_TYPE_GRAY
@@ -107,15 +111,15 @@ function PNGLoader:load(filename)
 			error("got a bit depth I can't support: "..tostring(bitDepth))
 		end
 
-		--local number_of_passes = png.png_set_interlace_handling(png_ptr)
+		--local number_of_passes = png.png_set_interlace_handling(png_pp[0])
 		-- looks like png 1.5 needed this but png 1.6 doesn't
-		--png.png_read_update_info(png_ptr, info_ptr)
+		--png.png_read_update_info(png_pp[0], info_pp[0])
 
 		-- read file
 
 		-- TODO replace png_byte etc in the header, lighten the load on luajit ffi
 		assert(ffi.sizeof('png_byte') == 1)
-		local rowPointer = png.png_get_rows(png_ptr, info_ptr)
+		local rowPointer = png.png_get_rows(png_pp[0], info_pp[0])
 		local channels = ({
 				[colorTypePalette] = 1,
 				[png.PNG_COLOR_TYPE_GRAY] = 1,
@@ -151,8 +155,31 @@ function PNGLoader:load(filename)
 				ffi.copy(ffi.cast('unsigned char*', data) + channels*width*y, rowPointer[y], channels*width)
 			end
 		end
-		-- TODO free rowPointer?
 
+		local palette
+		if colorType == colorTypePalette then
+			local pal_pp = ffi.new'png_color*[1]'
+			local numPal = ffi.new'int[1]'
+			if 0 == png.png_get_PLTE(png_pp[0], info_pp[0], pal_pp, numPal) then
+				error("[read_png_file] png_get_PLTE failed")
+			end
+			palette = {}
+			for i=1,numPal[0] do
+				palette[i] = {
+					pal_pp[0][i-1].red,
+					pal_pp[0][i-1].green,
+					pal_pp[0][i-1].blue,
+				}
+			end
+		end
+
+		-- http://www.libpng.org/pub/png/libpng-1.2.5-manual.html
+		-- "If you are not interested, you can pass NULL."
+		-- Why is this still crashing, and what am I missing?
+		--local end_pp = ffi.new'png_infop[1]'
+		--end_pp[0] = ffi.cast('void*', 0)
+		--png.png_read_end(png_pp[0], nil) -- ffi.cast('void*', 0)) -- end_pp[0]) -- 0)
+		png.png_destroy_read_struct(png_pp, info_pp, nil)	--end_pp)
 		stdio.fclose(fp)
 
 		return {
@@ -160,6 +187,7 @@ function PNGLoader:load(filename)
 			width = width,
 			height = height,
 			channels = channels,
+			palette = palette,
 		}
 	end, function(err)
 		return 'for filename '..filename..'\n'..err..'\n'..debug.traceback()
@@ -174,7 +202,7 @@ function PNGLoader:save(args)
 	local height = assert(args.height, "expected height")
 	local channels = assert(args.channels, "expected channels")
 	local data = assert(args.data, "expected data")
-
+	local palette = args.palette	 -- optiona, table of N tables of 3 values for RGB constrained to 0-255 for now
 	local fp
 	local png_pp = ffi.new'png_structp[1]'
 	local info_pp = ffi.new'png_infop[1]'
@@ -206,13 +234,28 @@ function PNGLoader:save(args)
 			height,
 			8,
 			({
-				[1] = png.PNG_COLOR_TYPE_GRAY,
+				[1] = palette
+					and colorTypePalette
+					or png.PNG_COLOR_TYPE_GRAY,
 				[3] = png.PNG_COLOR_TYPE_RGB,
 				[4] = png.PNG_COLOR_TYPE_RGB_ALPHA,
 			})[channels] or error("got unknown channels "..tostring(channels)),
 			png.PNG_INTERLACE_NONE,
 			png.PNG_COMPRESSION_TYPE_BASE,
 			png.PNG_FILTER_TYPE_BASE)
+
+		if palette then
+			local numPal = #palette
+			assertle(numPal, png.PNG_MAX_PALETTE_LENGTH, 'palette size exceeded')
+			local pngpal = gcmem.new('png_color', numPal)
+			for i,c in ipairs(palette) do
+				pngpal[i-1].red = c[1]
+				pngpal[i-1].green = c[2]
+				pngpal[i-1].blue = c[3]
+			end
+			png.png_set_PLTE(png_ptr, info_ptr, pngpal, numPal)
+		end
+
 		png.png_write_info(png_ptr, info_ptr)
 
 		local rowptrs = gcmem.new('unsigned char *', height)
@@ -234,12 +277,10 @@ function PNGLoader:save(args)
 	end)
 
 	-- cleanup
-
 	if png_pp[0] ~= nil then
 		-- TODO if info_pp[0] == null then do I have to pass nil instead of info_pp ?
 		png.png_destroy_write_struct(png_pp, info_pp)
 	end
-
 	if fp ~= nil then
 		stdio.fclose(fp)
 	end

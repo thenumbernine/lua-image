@@ -50,8 +50,10 @@ function Image:init(width,height,channels,format,generator)
 		self.buffer = result.data
 		self.width = result.width
 		self.height = result.height
+		-- TODO no defaults from loaders?
 		self.format = result.format or 'unsigned char'	-- the typical result
 		self.channels = result.channels or 3
+		self.palette = result.palette
 	else
 		self.buffer = gcmem.new(format, width * height * channels)
 		self.width = width
@@ -185,6 +187,7 @@ function Image:save(filename, ...)
 		channels = converted.channels,
 		format = converted.format,
 		data = converted.buffer,
+		palette = converted.palette,
 	}
 
 	-- returns self solely for chaining commands
