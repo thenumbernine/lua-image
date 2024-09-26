@@ -89,7 +89,7 @@ function TIFFLoader:load(filename)
 	tiff.TIFFClose(fp)
 
 	return {
-		data = data,
+		buffer = data,
 		width = width,
 		height = height,
 		channels = samplesPerPixel,

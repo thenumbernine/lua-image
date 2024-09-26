@@ -52,10 +52,11 @@ function GIFLoader:load(filename, imageIndex)
 	end
 
 	return {
-		data = data,
+		buffer = data,
 		width = width,
 		height = height,
 		channels = channels,
+		format = 'unsigned char',
 	}
 end
 

@@ -97,10 +97,11 @@ function JPEGLoader:load(filename)
 	stdio.fclose(infile)
 
 	return {
-		data = data,
+		buffer = data,
 		width = width,
 		height = height,
 		channels = channels,
+		format = 'unsigned char',
 	}
 end
 

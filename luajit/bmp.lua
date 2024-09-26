@@ -114,7 +114,7 @@ function BMPLoader:load(filename)
 	stdio.fclose(file)
 
 	return {
-		data = data,
+		buffer = data,
 		width = width,
 		height = height,
 		channels = channels,

@@ -80,7 +80,7 @@ function FITSLoader:load(filename)
 		assert(status[0] == 0, "ffclos failed with " .. status[0])
 
 		return {
-			data = data,
+			buffer = data,
 			width = width,
 			height = height,
 			channels = channels,

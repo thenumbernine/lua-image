@@ -47,13 +47,9 @@ function Image:init(width,height,channels,format,generator)
 		local filename = width
 		local loader = getLoaderForFilename(filename)
 		local result = loader:load(filename)
-		self.buffer = result.data
-		self.width = result.width
-		self.height = result.height
-		-- TODO no defaults from loaders?
-		self.format = result.format or 'unsigned char'	-- the typical result
-		self.channels = result.channels or 3
-		self.palette = result.palette
+		for k,v in pairs(result) do
+			self[k] = v
+		end
 	else
 		self.buffer = gcmem.new(format, width * height * channels)
 		self.width = width

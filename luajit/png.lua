@@ -214,7 +214,7 @@ function PNGLoader:load(filename)
 		stdio.fclose(fp)
 
 		return {
-			data = data,
+			buffer = data,
 			width = width,
 			height = height,
 			channels = channels,
