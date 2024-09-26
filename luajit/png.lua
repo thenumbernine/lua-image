@@ -1,5 +1,6 @@
 local Loader = require 'image.luajit.loader'
 local ffi = require 'ffi'
+local range = require 'ext.range'
 local asserteq = require 'ext.assert'.eq
 local assertle = require 'ext.assert'.le
 local assertindex = require 'ext.assert'.index
@@ -92,28 +93,31 @@ function PNGLoader:load(filename)
 		end
 
 		-- initialize stuff
-		local png_pp = ffi.new'png_structp[1]'
-		png_pp[0] = png.png_create_read_struct(self.libpngVersion, nil, errorCallback, warningCallback)
-
-		if png_pp[0] == nil then
+		local png_ptr = png.png_create_read_struct(self.libpngVersion, nil, errorCallback, warningCallback)
+		if png_ptr == nil then
 			error("[read_png_file] png_create_read_struct failed")
 		end
 
-		local info_pp = ffi.new'png_infop[1]'
-		info_pp[0] = png.png_create_info_struct(png_pp[0])
-		if info_pp[0] == nil then
+		local png_pp = ffi.new'png_structp[1]'
+		png_pp[0] = png_ptr
+
+		local info_ptr =  png.png_create_info_struct(png_ptr)
+		if info_ptr == nil then
 			error("[read_png_file] png_create_info_struct failed")
 		end
 
-		png.png_init_io(png_pp[0], fp)
-		png.png_set_sig_bytes(png_pp[0], 8)
+		local info_pp = ffi.new'png_infop[1]'
+		info_pp[0] = info_ptr
 
-		png.png_read_png(png_pp[0], info_pp[0], png.PNG_TRANSFORM_IDENTITY, nil)
+		png.png_init_io(png_ptr, fp)
+		png.png_set_sig_bytes(png_ptr, 8)
 
-		local width = png.png_get_image_width(png_pp[0], info_pp[0])
-		local height = png.png_get_image_height(png_pp[0], info_pp[0])
-		local colorType = png.png_get_color_type(png_pp[0], info_pp[0])
-		local bitDepth = png.png_get_bit_depth(png_pp[0], info_pp[0])
+		png.png_read_png(png_ptr, info_ptr, png.PNG_TRANSFORM_IDENTITY, nil)
+
+		local width = png.png_get_image_width(png_ptr, info_ptr)
+		local height = png.png_get_image_height(png_ptr, info_ptr)
+		local colorType = png.png_get_color_type(png_ptr, info_ptr)
+		local bitDepth = png.png_get_bit_depth(png_ptr, info_ptr)
 		if colorType ~= png.PNG_COLOR_TYPE_GRAY
 		and colorType ~= png.PNG_COLOR_TYPE_RGB
 		and colorType ~= png.PNG_COLOR_TYPE_PALETTE
@@ -131,15 +135,15 @@ function PNGLoader:load(filename)
 			error("got unknown bit depth: "..tostring(bitDepth))
 		end
 
-		--local number_of_passes = png.png_set_interlace_handling(png_pp[0])
+		--local number_of_passes = png.png_set_interlace_handling(png_ptr)
 		-- looks like png 1.5 needed this but png 1.6 doesn't
-		--png.png_read_update_info(png_pp[0], info_pp[0])
+		--png.png_read_update_info(png_ptr, info_ptr)
 
 		-- read file
 
 		-- TODO replace png_byte etc in the header, lighten the load on luajit ffi
 		assert(ffi.sizeof('png_byte') == 1)
-		local rowPointer = png.png_get_rows(png_pp[0], info_pp[0])
+		local rowPointer = png.png_get_rows(png_ptr, info_ptr)
 		local channels = ({
 			[png.PNG_COLOR_TYPE_GRAY] = 1,
 			[png.PNG_COLOR_TYPE_PALETTE] = 1,
@@ -190,7 +194,7 @@ function PNGLoader:load(filename)
 		if colorType == png.PNG_COLOR_TYPE_PALETTE then
 			local pal_pp = ffi.new'png_color*[1]'
 			local numPal = ffi.new'int[1]'
-			if 0 == png.png_get_PLTE(png_pp[0], info_pp[0], pal_pp, numPal) then
+			if 0 == png.png_get_PLTE(png_ptr, info_ptr, pal_pp, numPal) then
 				error("[read_png_file] png_get_PLTE failed")
 			end
 			palette = {}
@@ -204,16 +208,7 @@ function PNGLoader:load(filename)
 			end
 		end
 
-		-- http://www.libpng.org/pub/png/libpng-1.2.5-manual.html
-		-- "If you are not interested, you can pass NULL."
-		-- Why is this still crashing, and what am I missing?
-		--local end_pp = ffi.new'png_infop[1]'
-		--end_pp[0] = ffi.cast('void*', 0)
-		--png.png_read_end(png_pp[0], nil) -- ffi.cast('void*', 0)) -- end_pp[0]) -- 0)
-		png.png_destroy_read_struct(png_pp, info_pp, nil)	--end_pp)
-		stdio.fclose(fp)
-
-		return {
+		local result = {
 			buffer = data,
 			width = width,
 			height = height,
@@ -221,6 +216,207 @@ function PNGLoader:load(filename)
 			format = format,
 			palette = palette,
 		}
+		--[[
+		see if we can't load any other tags ...
+		TODO save them too? maybe not, idk.
+		what are all our chunks?
+		http://www.libpng.org/pub/png/spec/1.2/PNG-Chunks.html
+		IHDR - header - check
+		PLTE - palette - check
+		IDAT - image data - check
+		IEND - ending - check
+		tRNS - transparency - check i guess, for RGBA images i guess
+		gAMA ...
+		sRGB ...
+		iCCP ...
+		iTXt, tEXt, zTXt ...
+		bKGD
+		pHYs
+		sCAL
+		sBIT
+		sPLT
+		hIST
+		png_uint_32 png_get_pCAL(png_const_structrp png_ptr, png_inforp info_ptr, png_charp *purpose, png_int_32 *X0, png_int_32 *X1, int * png_uint_32, int *nparams, png_charp *units, png_charpp *params);
+		png_uint_32 png_get_oFFs(png_const_structrp png_ptr, png_const_inforp info_ptr, png_int_32 *offset_x, png_int_32 *offset_y, int *unit_type);
+		png_uint_32 png_get_eXIf(png_const_structrp png_ptr, png_inforp info_ptr, png_bytep *exif);
+
+		TODO TODO seems the png functions are groupe dbetween getters of chunk info directly, and lots of helper functions
+		how about spearating these ot make sure we get all info
+		btw htere's "get unknown chunks" but is there "get known chunks" ?
+		--]]
+--DEBUG:print'reading gAMA'
+		local gamma = ffi.new'double[1]'
+		if 0 ~= png.png_get_gAMA(png_ptr, info_ptr, gamma) then
+			result.gamma = gamma[0]
+		end
+
+--DEBUG:print'reading cHRM'
+		local chromatics = ffi.new'double[8]'
+		if 0 ~= png.png_get_cHRM(png_ptr, info_ptr, chromatics+0, chromatics+1, chromatics+2, chromatics+3, chromatics+4, chromatics+5, chromatics+6, chromatics+7) then
+			result.chromatics = {
+				whiteX = chromatics[0],
+				whiteY = chromatics[1],
+				redX = chromatics[2],
+				redY = chromatics[3],
+				greenX = chromatics[4],
+				greenY = chromatics[5],
+				blueX = chromatics[6],
+				blueY = chromatics[7],
+			}
+		end
+
+--DEBUG:print'reading sRGB'
+		local srgb = ffi.new'int[1]'
+		if 0 ~= png.png_get_sRGB(png_ptr, info_ptr, srgb) then
+			--[[
+			0: Perceptual
+			1: Relative colorimetric
+			2: Saturation
+			3: Absolute colorimetric
+			--]]
+			result.srgbIntent = srgb[0]
+		end
+
+--DEBUG:print'reading iCCP'
+		local name = ffi.new'char*[1]'
+		local compressionType = ffi.new'int[1]'
+		local profile = ffi.new'uint8_t*[1]'
+		local profileLen = ffi.new'uint32_t[1]'
+		if 0 ~= png.png_get_iCCP(png_ptr, info_ptr, name, compressionType, profile, profileLen) then
+			result.iccpProfile = {
+				name = ffi.string(name),
+				-- "must always be set to PNG_COMPRESSION_TYPE_BASE"
+				compressionType = compressionType[0],
+				-- "International Color Consortium color profile"
+				profile = ffi.string(profile, profileLen[0]),
+			}
+		end
+
+--DEBUG:print'reading text'
+		local numText = png.png_get_text(png_ptr, info_ptr, nil, nil)
+		if numText > 0 then
+			local textPtr = ffi.new('png_text*[1]')
+			png.png_get_text(png_ptr, info_ptr, textPtr, nil)
+			result.text = range(0,numText-1):mapi(function(i)
+				local text = textPtr[0][i]
+				return {
+					compression = text.compression,
+					key = text.key ~= nil and ffi.string(text.key) or nil,
+					text = text.text ~= nil and ffi.string(text.text) or nil,--, text.text_length),
+					text_length = text.text_length,	-- why is this needed? is our string null-term?
+					itxt_length = text.itxt_length,	-- how about this? just to show compression size? or for reading compressed data?
+					lang = text.lang ~= nil and ffi.string(text.lang) or nil,
+					lang_key = text.lang_key ~= nil and ffi.string(text.lang_key) or nil,
+				}
+			end)
+		end
+
+--DEBUG:print'reading bKGD'
+		local background = ffi.new'png_color_16*[1]'
+		if 0 ~= png.png_get_bKGD(png_ptr, info_ptr, background) then
+			result.background = {
+				index = background[0].index,
+				red = background[0].red,
+				green = background[0].green,
+				blue = background[0].blue,
+				gray = background[0].gray,
+			}
+		end
+
+--DEBUG:print'reading pHYs'
+		local resX = ffi.new'png_uint_32[1]'
+		local resY = ffi.new'png_uint_32[1]'
+		local unitType = ffi.new'int[1]'
+		if 0 ~= png.png_get_pHYs(png_ptr, info_ptr, resX, resY, unitType) then
+			result.physical = {
+				resX = resX[0],
+				resY = resY[0],
+				unitType = unitType[0],
+			}
+		end
+
+--DEBUG:print'reading sCAL'
+		local unit = ffi.new'int[1]'
+		local width = ffi.new'double[1]'
+		local height = ffi.new'double[1]'
+		if 0 ~= png.png_get_sCAL(png_ptr, info_ptr, unit, width, height) then
+			result.scale = {
+				unit = unit[0],
+				width = width[0],
+				height = height[0],
+			}
+		end
+
+--DEBUG:print'reading sBIT'
+		local sigBit = ffi.new'png_color_8*[1]'
+		if 0 ~= png.png_get_sBIT(png_ptr, info_ptr, sigBit) then
+			result.significant = {
+				red = sigBit[0].red,
+				green = sigBit[0].green,
+				blue = sigBit[0].blue,
+				gray = sigBit[0].gray,
+				alpha = sigBit[0].alpha,
+			}
+		end
+
+--DEBUG:print'reading sPLT'
+		local spltEntries = ffi.new'png_sPLT_t*[1]'
+		local numSuggestedPalettes = png.png_get_sPLT(png_ptr, info_ptr, spltEntries)
+		if numSuggestedPalettes > 0 then
+			result.suggestedPalettes = range(0,numSuggestedPalettes-1):mapi(function(i)
+				local splt = spltEntries[0][i]
+				return {
+					name = splt.name ~= nil and ffi.string(splt.name) or nil,
+					depth = splt.depth,
+					entries = range(0,splt.nentries-1):mapi(function(j)
+						local entry = splt.entries[j]
+						return {
+							red = entry.red,
+							green = entry.green,
+							blue = entry.blue,
+							alpha = entry.alpha,
+							frequency = entry.frequency,
+						}
+					end),
+				}
+			end)
+		end
+
+--DEBUG:print'reading hIST'
+		local hist = ffi.new'png_uint_16p[1]'
+		if 0 ~= png.png_get_hIST(png_ptr, info_ptr, hist)
+		-- hist .. what is the size? the docs and no examples show.
+		and result.palette then	-- TODO if not then something is wrong ...histogram is only supposed ot appear when there is a palette....
+			-- TODO this and .palette, keep them cdata maybe?
+			result.histogram = range(0,#result.palette-1):mapi(function(i)
+				return hist[0][i]
+			end)
+		end
+
+		local modTime = ffi.new'png_time*[1]'
+		if 0 ~= png.png_get_tIME(png_ptr, info_ptr, modTime) then
+			result.modTime = {
+				year = modTime[0].year,
+				month = modTime[0].month,
+				day = modTime[0].day,
+				hour = modTime[0].hour,
+				minute = modTime[0].minute,
+				second = modTime[0].second,
+			}
+		end
+
+		--png_get_unknown_chunks = [[int png_get_unknown_chunks(png_const_structrp png_ptr, png_inforp info_ptr, png_unknown_chunkpp entries);]],
+
+		-- http://www.libpng.org/pub/png/libpng-1.2.5-manual.html
+		-- "If you are not interested, you can pass NULL."
+		-- Why is this still crashing, and what am I missing?
+		--local end_pp = ffi.new'png_infop[1]'
+		--end_pp[0] = ffi.cast('void*', 0)
+		--png.png_read_end(png_ptr, nil) -- ffi.cast('void*', 0)) -- end_pp[0]) -- 0)
+		png.png_destroy_read_struct(png_pp, info_pp, nil)	--end_pp)
+		stdio.fclose(fp)
+
+		return result
 	end, function(err)
 		return 'for filename '..filename..'\n'..err..'\n'..debug.traceback()
 	end)))

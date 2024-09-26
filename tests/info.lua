@@ -1,12 +1,13 @@
 #!/usr/bin/env luajit
 local fn = assert(..., "expected filename")
+local table = require 'ext.table'
+local tolua = require 'ext.tolua'
 local Image = require 'image'
 local image = Image(fn)
-print('width', image.width)
-print('height', image.height)
-print('channels', image.channels)
-print('format', image.format)
-print('palette', image.palette and #image.palette)
+
+print(tolua(image))
+
+print('PALETTE LEN:', image.palette and #image.palette)
 for i,c in ipairs(image.palette or {}) do
 	io.write((i..'=%06x\t'):format(bit.bor(
 		bit.lshift(c[1], 16),
