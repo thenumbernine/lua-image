@@ -283,7 +283,7 @@ function PNGLoader:load(filename)
 		local profile = ffi.new'char*[1]'
 		local profileLen = ffi.new'uint32_t[1]'
 		if 0 ~= png.png_get_iCCP(png_ptr, info_ptr, name, compressionType, profile, profileLen) then
-			result.iccpProfile = {
+			result.iccProfile = {
 				name = name[0] ~= nil and ffi.string(name[0]) or nil,
 				-- "must always be set to PNG_COMPRESSION_TYPE_BASE"
 				compressionType = compressionType[0],
