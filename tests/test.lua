@@ -7,7 +7,7 @@ print('reading '..readFilename)
 local image = assert(Image(readFilename), "failed to open image "..readFilename)
 print(require 'ext.tolua'(image))
 
-image:setFormat'uint16_t'
+image = image:setFormat'uint16_t'
 
 print('writing '..writeFilename)
 assert(image:save(writeFilename), "failed to save image "..writeFilename)

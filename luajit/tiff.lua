@@ -110,7 +110,10 @@ function TIFFLoader:save(args)
 	local bytesPerSample = ffi.sizeof(format)
 	local bitsPerSample = bit.lshift(bytesPerSample, 3)
 
---print('tiff version '..ffi.string(tiff.TIFFGetVersion()))
+--DEBUG:print('tiff saving image format', format)
+--DEBUG:print('bytes/sample', bytesPerSample)
+--DEBUG:print('bits/sample', bitsPerSample)
+--DEBUG:print('tiff version '..ffi.string(tiff.TIFFGetVersion()))
 
 	local sampleFormat
 	if ffi.typeof(format) == ffi.typeof'int8_t'
@@ -176,7 +179,7 @@ function TIFFLoader:save(args)
 		and assert(tiff.COMPRESSION_LZW) 
 		or assert(tiff.COMPRESSION_ZSTD)
 	)
-	if bitsPerSample == 8 and channels == 3 then
+	if channels == 3 then
 		writetag('TIFFTAG_PHOTOMETRIC', 'uint16_t', assert(tiff.PHOTOMETRIC_RGB))
 	else
 		writetag('TIFFTAG_PHOTOMETRIC', 'uint16_t', assert(tiff.PHOTOMETRIC_MINISBLACK))
