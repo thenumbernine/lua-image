@@ -175,9 +175,10 @@ function TIFFLoader:save(args)
 	writetag('TIFFTAG_SAMPLESPERPIXEL', 'uint16_t', channels)
 	writetag('TIFFTAG_PLANARCONFIG', 'uint16_t', assert(tiff.PLANARCONFIG_CONTIG))
 	writetag('TIFFTAG_COMPRESSION', 'uint16_t', 
-		ffi.sizeof(format) == 1 
-		and assert(tiff.COMPRESSION_LZW) 
-		or assert(tiff.COMPRESSION_ZSTD)
+		args.compression or
+		--assert(tiff.COMPRESSION_NONE) -- I don't like this one
+		assert(tiff.COMPRESSION_LZW)
+		--assert(tiff.COMPRESSION_ZSTD) -- GIMP doesn't like this one
 	)
 	if channels == 3 then
 		writetag('TIFFTAG_PHOTOMETRIC', 'uint16_t', assert(tiff.PHOTOMETRIC_RGB))
@@ -189,6 +190,9 @@ function TIFFLoader:save(args)
 
 	local stripSize = bytesPerSample * channels * width
 	stripSize = tiff.TIFFDefaultStripSize(fp, stripSize)
+	if stripSize == -1 then
+		error("TIFFDefaultStripSize failed")
+	end
 	writetag('TIFFTAG_ROWSPERSTRIP', 'uint32_t', stripSize)
 
 	local ptr = ffi.cast('uint8_t*', buffer)
