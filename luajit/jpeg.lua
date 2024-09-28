@@ -84,7 +84,7 @@ function JPEGLoader:load(filename)
 	local width = cinfo[0].output_width
 	local height = cinfo[0].output_height
 	local channels = 3
-	local buffer = gcmem.new('unsigned char', width * height * channels)
+	local buffer = gcmem.new('uint8_t', width * height * channels)
 
 	local y = 0
 	while cinfo[0].output_scanline < cinfo[0].output_height do
@@ -101,7 +101,7 @@ function JPEGLoader:load(filename)
 		width = width,
 		height = height,
 		channels = channels,
-		format = 'unsigned char',
+		format = 'uint8_t',
 	}
 end
 

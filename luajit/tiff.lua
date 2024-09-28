@@ -14,8 +14,8 @@ function TIFFLoader:load(filename)
 	local fp = tiff.TIFFOpen(filename, 'r')
 	if fp == nil then error("failed to open file "..filename.." for reading") end
 
-	local function readtag(tagname, type, default)
-		local result = gcmem.new(type, 1)
+	local function readtag(tagname, ctype, default)
+		local result = gcmem.new(ctype, 1)
 		if tiff.TIFFGetField(fp, assert(tiff[tagname]), result) ~= 1 then
 			if default ~= nil then return default end
 			error("failed to read tag "..tagname)
@@ -159,30 +159,41 @@ function TIFFLoader:save(args)
 	local fp = tiff.TIFFOpen(filename, 'w')
 	if fp == nil then error("failed to open file "..filename.." for writing") end
 
-	tiff.TIFFSetField(fp, assert(tiff.TIFFTAG_IMAGEWIDTH), ffi.cast('uint32_t', width))
-	tiff.TIFFSetField(fp, assert(tiff.TIFFTAG_IMAGELENGTH), ffi.cast('uint32_t', height))
-	tiff.TIFFSetField(fp, assert(tiff.TIFFTAG_BITSPERSAMPLE), ffi.cast('uint16_t', bitsPerSample))
-	tiff.TIFFSetField(fp, assert(tiff.TIFFTAG_SAMPLESPERPIXEL), ffi.cast('uint16_t', channels))
-	tiff.TIFFSetField(fp, assert(tiff.TIFFTAG_PLANARCONFIG), ffi.cast('uint16_t', assert(tiff.PLANARCONFIG_CONTIG)))
-	tiff.TIFFSetField(fp, assert(tiff.TIFFTAG_COMPRESSION), ffi.cast('uint16_t', 
-		ffi.sizeof(format) == 1 and assert(tiff.COMPRESSION_LZW) or assert(tiff.COMPRESSION_ZSTD)
-	))
-	if bitsPerSample == 8 and channels == 3 then
-		tiff.TIFFSetField(fp, assert(tiff.TIFFTAG_PHOTOMETRIC), ffi.cast('uint16_t', assert(tiff.PHOTOMETRIC_RGB)))
-	else
-		tiff.TIFFSetField(fp, assert(tiff.TIFFTAG_PHOTOMETRIC), ffi.cast('uint16_t', assert(tiff.PHOTOMETRIC_MINISBLACK)))
+	local function writetag(tagname, ctype, value)
+		local tagvalue = assert(tiff[tagname])
+		if 0 == tiff.TIFFSetField(fp, tagvalue, ffi.cast(ctype, value)) then
+			error("TIFFSetField failed for "..tostring(tagname).." "..tostring(ctype).." "..tostring(value))
+		end
 	end
-	tiff.TIFFSetField(fp, assert(tiff.TIFFTAG_ORIENTATION), ffi.cast('uint16_t', assert(tiff.ORIENTATION_TOPLEFT)))
-	tiff.TIFFSetField(fp, assert(tiff.TIFFTAG_SAMPLEFORMAT), ffi.cast('uint16_t', sampleFormat))
+
+	writetag('TIFFTAG_IMAGEWIDTH', 'uint32_t', width)
+	writetag('TIFFTAG_IMAGELENGTH', 'uint32_t', height)
+	writetag('TIFFTAG_BITSPERSAMPLE', 'uint16_t', bitsPerSample)
+	writetag('TIFFTAG_SAMPLESPERPIXEL', 'uint16_t', channels)
+	writetag('TIFFTAG_PLANARCONFIG', 'uint16_t', assert(tiff.PLANARCONFIG_CONTIG))
+	writetag('TIFFTAG_COMPRESSION', 'uint16_t', 
+		ffi.sizeof(format) == 1 
+		and assert(tiff.COMPRESSION_LZW) 
+		or assert(tiff.COMPRESSION_ZSTD)
+	)
+	if bitsPerSample == 8 and channels == 3 then
+		writetag('TIFFTAG_PHOTOMETRIC', 'uint16_t', assert(tiff.PHOTOMETRIC_RGB))
+	else
+		writetag('TIFFTAG_PHOTOMETRIC', 'uint16_t', assert(tiff.PHOTOMETRIC_MINISBLACK))
+	end
+	writetag('TIFFTAG_ORIENTATION', 'uint16_t', assert(tiff.ORIENTATION_TOPLEFT))
+	writetag('TIFFTAG_SAMPLEFORMAT', 'uint16_t', sampleFormat)
 
 	local stripSize = bytesPerSample * channels * width
 	stripSize = tiff.TIFFDefaultStripSize(fp, stripSize)
-	tiff.TIFFSetField(fp, assert(tiff.TIFFTAG_ROWSPERSTRIP), ffi.cast('uint32_t', stripSize))
+	writetag('TIFFTAG_ROWSPERSTRIP', 'uint32_t', stripSize)
 
 	local ptr = ffi.cast('uint8_t*', buffer)
 	for y=0,height-1 do
 		--tiff.TIFFWriteEncodedStrip(fp, 0, ptr, stripSize)
-		tiff.TIFFWriteScanline(fp, ptr, y, 0)
+		if tiff.TIFFWriteScanline(fp, ptr, y, 0) == -1 then
+			error("TIFFWriteScanline failed")
+		end
 		ptr = ptr + stripSize
 	end
 

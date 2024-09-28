@@ -53,7 +53,7 @@ function PNGLoader:prepareImage(image)
 	else
 		-- all non-palette image types can be 1,2,4,8,16 bpp
 		if ffi.sizeof(image.format) > 2 then
-			image = image:setFormat'unsigned char'
+			image = image:setFormat'uint8_t'
 		end
 	end
 
@@ -489,7 +489,7 @@ function PNGLoader:save(args)
 
 		png.png_write_info(png_ptr, info_ptr)
 
-		local rowptrs = gcmem.new('unsigned char *', height)
+		local rowptrs = gcmem.new('uint8_t *', height)
 		for y=0,height-1 do
 			-- [[ do I need to allocate these myself?
 			rowptrs[y] = buffer + channels*width*y

@@ -34,7 +34,7 @@ function GIFLoader:load(filename, imageIndex)
 	local width = desc.Width
 	local height = desc.Height
 	local channels = 3
-	local buffer = ffi.new('unsigned char[?]', width * height * channels)
+	local buffer = ffi.new('uint8_t[?]', width * height * channels)
 
 	for v=0,height-1 do
 		for u=0,width-1 do
@@ -56,7 +56,7 @@ function GIFLoader:load(filename, imageIndex)
 		width = width,
 		height = height,
 		channels = channels,
-		format = 'unsigned char',
+		format = 'uint8_t',
 	}
 end
 

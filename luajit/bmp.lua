@@ -93,7 +93,7 @@ function BMPLoader:load(filename)
 	local height = infoHeader[0].biHeight
 	assert(height >= 0, "currently doesn't support flipped images")
 
-	local buffer = gcmem.new('unsigned char', width * height * channels)
+	local buffer = gcmem.new('uint8_t', width * height * channels)
 
 	local padding = (4-(channels * width))%4
 
@@ -118,7 +118,7 @@ function BMPLoader:load(filename)
 		width = width,
 		height = height,
 		channels = channels,
-		format = 'unsigned char',
+		format = 'uint8_t',
 		xdpi = infoHeader[0].biXPelsPerMeter,
 		ydpi = infoHeader[0].biYPelsPerMeter,
 	}
@@ -162,7 +162,7 @@ function BMPLoader:save(args)
 	local zero = gcmem.new('int', 1)
 	zero[0] = 0
 
-	local row = gcmem.new('unsigned char', channels * width)
+	local row = gcmem.new('uint8_t', channels * width)
 	for y=height-1,0,-1 do
 		ffi.copy(row, buffer + channels * width * y, channels * width)
 		for x=0,width-1 do
