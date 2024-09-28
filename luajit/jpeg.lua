@@ -79,17 +79,17 @@ function JPEGLoader:load(filename)
 	jpeg.jpeg_start_decompress(cinfo)
 -- TODO :
 	local row_stride = cinfo[0].output_width * cinfo[0].output_components
-	local buffer = cinfo[0].mem[0].alloc_sarray(ffi.cast('j_common_ptr', cinfo), jpeg.JPOOL_IMAGE, row_stride, 1)
+	local tmpbuffer = cinfo[0].mem[0].alloc_sarray(ffi.cast('j_common_ptr', cinfo), jpeg.JPOOL_IMAGE, row_stride, 1)
 
 	local width = cinfo[0].output_width
 	local height = cinfo[0].output_height
 	local channels = 3
-	local data = gcmem.new('unsigned char', width * height * channels)
+	local buffer = gcmem.new('unsigned char', width * height * channels)
 
 	local y = 0
 	while cinfo[0].output_scanline < cinfo[0].output_height do
-		jpeg.jpeg_read_scanlines(cinfo, buffer, 1)
-		ffi.copy(data + channels * y * width, buffer[0], channels * width)
+		jpeg.jpeg_read_scanlines(cinfo, tmpbuffer, 1)
+		ffi.copy(buffer + channels * y * width, tmpbuffer[0], channels * width)
 		y=y+1
 	end
 	jpeg.jpeg_finish_decompress(cinfo)
@@ -97,7 +97,7 @@ function JPEGLoader:load(filename)
 	stdio.fclose(infile)
 
 	return {
-		buffer = data,
+		buffer = buffer,
 		width = width,
 		height = height,
 		channels = channels,
@@ -111,7 +111,7 @@ function JPEGLoader:save(args)
 	local width = assert(args.width, "expected width")
 	local height = assert(args.height, "expected height")
 	local channels = assert(args.channels, "expected channels")
-	local data = assert(args.data, "expected data")
+	local buffer = assert(args.buffer, "expected buffer")
 	local quality = args.quality or 90
 
 	local cinfo = gcmem.new('struct jpeg_compress_struct', 1)
@@ -147,7 +147,7 @@ function JPEGLoader:save(args)
 
 	local row_pointer = gcmem.new('JSAMPROW', 1)
 	while cinfo[0].next_scanline < cinfo[0].image_height do
-		row_pointer[0] = data + cinfo[0].next_scanline * row_stride
+		row_pointer[0] = buffer + cinfo[0].next_scanline * row_stride
 		jpeg.jpeg_write_scanlines(cinfo, row_pointer, 1)
 	end
 

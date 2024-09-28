@@ -24,18 +24,13 @@ function TIFFLoader:load(filename)
 	end
 	local width = readtag('TIFFTAG_IMAGEWIDTH', 'uint32_t')
 	local height = readtag('TIFFTAG_IMAGELENGTH', 'uint32_t')
-
 	local bitsPerSample = readtag('TIFFTAG_BITSPERSAMPLE', 'uint16_t')	-- default = 1 ... but seems like it's always there
-
 	local samplesPerPixel = readtag('TIFFTAG_SAMPLESPERPIXEL', 'uint16_t')	-- default = 1 ... but seems like it's always there
-
 	local sampleFormat = readtag('TIFFTAG_SAMPLEFORMAT', 'uint16_t', tiff.SAMPLEFORMAT_UINT)
-
-	local pixelSize = math.floor(bitsPerSample / 8 * samplesPerPixel)
+	local pixelSize = bit.rshift(bitsPerSample * samplesPerPixel, 3)
 	if pixelSize == 0 then
 		error("unsupported bitsPerSample="..bitsPerSample)--.." sampleFormat="..sampleFormat)
 	end
-
 
 	local format
 	if sampleFormat == tiff.SAMPLEFORMAT_UINT then
@@ -78,9 +73,9 @@ function TIFFLoader:load(filename)
 		error("couldn't deduce format from bitsPerSample="..bitsPerSample.." sampleFormat="..sampleFormat)
 	end
 
-	local data = gcmem.new(format, width * height * pixelSize)
+	local buffer = gcmem.new(format, width * height * pixelSize)
 
-	local ptr = ffi.cast('unsigned char*', data)
+	local ptr = ffi.cast('uint8_t*', buffer)
 	for strip=0,tiff.TIFFNumberOfStrips(fp)-1 do
 		tiff.TIFFReadEncodedStrip(fp, strip, ptr, -1)
 		local stripSize = tiff.TIFFStripSize(fp)
@@ -89,7 +84,7 @@ function TIFFLoader:load(filename)
 	tiff.TIFFClose(fp)
 
 	return {
-		buffer = data,
+		buffer = buffer,
 		width = width,
 		height = height,
 		channels = samplesPerPixel,
@@ -102,48 +97,59 @@ function TIFFLoader:prepareImage(image)
 	return image
 end
 
--- assumes RGB data
+-- assumes RGB buffer
 function TIFFLoader:save(args)
 	-- args:
 	local filename = assert(args.filename, "expected filename")
 	local width = assert(args.width, "expected width")
 	local height = assert(args.height, "expected height")
-	local data = assert(args.data, "expected data")
-	local format = assert(args.format, "expected format")	-- or unsigned char?
+	local buffer = assert(args.buffer, "expected buffer")
+	local format = assert(args.format, "expected format")
 	local channels = assert(args.channels, "expected channels")
 
 	local bytesPerSample = ffi.sizeof(format)
-	local bitsPerSample = bytesPerSample * 8
+	local bitsPerSample = bit.lshift(bytesPerSample, 3)
 
 --print('tiff version '..ffi.string(tiff.TIFFGetVersion()))
 
-	local sampleFormat = assert(tiff.SAMPLEFORMAT_UINT)	-- default
-	-- TODO what about typedef'd ffi types?  any way to query ffi to find the original type? or find if it is a float type or not?
-	if format == 'int8_t'
-	or format == 'int16_t'
-	or format == 'int32_t'
-	or format == 'char'
-	or format == 'short'
-	or format == 'int'
-	or format == 'long'
+	local sampleFormat
+	if ffi.typeof(format) == ffi.typeof'int8_t'
+	or ffi.typeof(format) == ffi.typeof'int16_t'
+	or ffi.typeof(format) == ffi.typeof'int32_t'
+	or ffi.typeof(format) == ffi.typeof'char'
+	or ffi.typeof(format) == ffi.typeof'short'
+	or ffi.typeof(format) == ffi.typeof'int'
+	or ffi.typeof(format) == ffi.typeof'long'
 	then
 		sampleFormat = tiff.SAMPLEFORMAT_INT
-	elseif format == 'float'
-	or format == 'double'
+	elseif ffi.typeof(format) == ffi.typeof'uint8_t'
+	or ffi.typeof(format) == ffi.typeof'uint16_t'
+	or ffi.typeof(format) == ffi.typeof'uint32_t'
+	or ffi.typeof(format) == ffi.typeof'unsigned char'
+	or ffi.typeof(format) == ffi.typeof'unsigned short'
+	or ffi.typeof(format) == ffi.typeof'unsigned int'
+	or ffi.typeof(format) == ffi.typeof'unsigned long'
+	then
+		sampleFormat = tiff.SAMPLEFORMAT_UINT
+	elseif ffi.typeof(format) == ffi.typeof'float'
+	or ffi.typeof(format) == ffi.typeof'double'
 	then
 		sampleFormat = tiff.SAMPLEFORMAT_IEEEFP
-	elseif format == 'complex char'
-	or format == 'complex short'
-	or format == 'complex int'
+	elseif ffi.typeof(format) == ffi.typeof'complex char'
+	or ffi.typeof(format) == ffi.typeof'complex short'
+	or ffi.typeof(format) == ffi.typeof'complex int'
 	then
 		sampleFormat = tiff.SAMPLEFORMAT_COMPLEXINT
-	elseif format == 'complex float'
-	or format == 'complex double'
+	elseif ffi.typeof(format) == ffi.typeof'complex float'
+	or ffi.typeof(format) == ffi.typeof'complex double'
 	then
 		sampleFormat = tiff.SAMPLEFORMAT_COMPLEXIEEEFP
 	else
 		-- assume it's uint?
 		-- TODO support for SAMPLEFORMAT_VOID somehow?
+	end
+	if not sampleFormat then
+		error("couldn't deduce format for type "..tostring(format))
 	end
 
 -- TODO capture errors and use lua errors?
@@ -158,7 +164,9 @@ function TIFFLoader:save(args)
 	tiff.TIFFSetField(fp, assert(tiff.TIFFTAG_BITSPERSAMPLE), ffi.cast('uint16_t', bitsPerSample))
 	tiff.TIFFSetField(fp, assert(tiff.TIFFTAG_SAMPLESPERPIXEL), ffi.cast('uint16_t', channels))
 	tiff.TIFFSetField(fp, assert(tiff.TIFFTAG_PLANARCONFIG), ffi.cast('uint16_t', assert(tiff.PLANARCONFIG_CONTIG)))
-	tiff.TIFFSetField(fp, assert(tiff.TIFFTAG_COMPRESSION), ffi.cast('uint16_t', assert(tiff.COMPRESSION_NONE)))
+	tiff.TIFFSetField(fp, assert(tiff.TIFFTAG_COMPRESSION), ffi.cast('uint16_t', 
+		ffi.sizeof(format) == 1 and assert(tiff.COMPRESSION_LZW) or assert(tiff.COMPRESSION_ZSTD)
+	))
 	if bitsPerSample == 8 and channels == 3 then
 		tiff.TIFFSetField(fp, assert(tiff.TIFFTAG_PHOTOMETRIC), ffi.cast('uint16_t', assert(tiff.PHOTOMETRIC_RGB)))
 	else
@@ -171,7 +179,7 @@ function TIFFLoader:save(args)
 	stripSize = tiff.TIFFDefaultStripSize(fp, stripSize)
 	tiff.TIFFSetField(fp, assert(tiff.TIFFTAG_ROWSPERSTRIP), ffi.cast('uint32_t', stripSize))
 
-	local ptr = ffi.cast('unsigned char*', data)
+	local ptr = ffi.cast('uint8_t*', buffer)
 	for y=0,height-1 do
 		--tiff.TIFFWriteEncodedStrip(fp, 0, ptr, stripSize)
 		tiff.TIFFWriteScanline(fp, ptr, y, 0)

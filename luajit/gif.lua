@@ -34,7 +34,7 @@ function GIFLoader:load(filename, imageIndex)
 	local width = desc.Width
 	local height = desc.Height
 	local channels = 3
-	local data = ffi.new('unsigned char[?]', width * height * channels)
+	local buffer = ffi.new('unsigned char[?]', width * height * channels)
 
 	for v=0,height-1 do
 		for u=0,width-1 do
@@ -42,9 +42,9 @@ function GIFLoader:load(filename, imageIndex)
 			if colorMap ~= nil then
 				local --[[GifColorType]] rgb = colorMap[0].Colors[c]
 				local dstindex = channels * (u + width * v)
-				data[0 + dstindex] = rgb.Red
-				data[1 + dstindex] = rgb.Green
-				data[2 + dstindex] = rgb.Blue
+				buffer[0 + dstindex] = rgb.Red
+				buffer[1 + dstindex] = rgb.Green
+				buffer[2 + dstindex] = rgb.Blue
 			else
 				error("Can't decode this gif")	--truecolor gif? greyscale? no color map...
 			end
@@ -52,7 +52,7 @@ function GIFLoader:load(filename, imageIndex)
 	end
 
 	return {
-		buffer = data,
+		buffer = buffer,
 		width = width,
 		height = height,
 		channels = channels,

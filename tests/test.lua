@@ -1,7 +1,7 @@
 #!/usr/bin/env luajit
-require 'ext'
 local path = require 'ext.path'
 local format, writeFilename = ...
+assert(format)
 local Image = require 'image'
 local filename = 'test.'..format
 writeFilename = writeFilename or ('test-write.'..format)

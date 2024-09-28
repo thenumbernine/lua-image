@@ -72,15 +72,15 @@ function FITSLoader:load(filename)
 		local channels = tonumber(sizes[2])
 
 		local numPixels = width * height * channels
-		local data = gcmem.new(format, numPixels)
-		fits.ffgpxv(fitsFilePtr[0], imgType, fpixel, numPixels, nil, data, nil, status)
+		local buffer = gcmem.new(format, numPixels)
+		fits.ffgpxv(fitsFilePtr[0], imgType, fpixel, numPixels, nil, buffer, nil, status)
 		assert(status[0] == 0, "ffgpxv failed with " .. status[0])
 
 		fits.ffclos(fitsFilePtr[0], status)
 		assert(status[0] == 0, "ffclos failed with " .. status[0])
 
 		return {
-			buffer = data,
+			buffer = buffer,
 			width = width,
 			height = height,
 			channels = channels,
@@ -115,7 +115,7 @@ function FITSLoader:save(args)
 	local height = assert(args.height, "expected height")
 	local channels = assert(args.channels, "expected channels")
 	local format = assert(args.format, "expected format")
-	local data = assert(args.data, "expected data")
+	local buffer = assert(args.buffer, "expected buffer")
 
 	if path(filename):exists() then path(filename):remove() end
 
@@ -148,7 +148,7 @@ function FITSLoader:save(args)
 
 	local imgType = formatInfo.imgType
 
-	fits.ffppx(fitsFilePtr[0], imgType, firstpix, numPixels, ffi.cast('void*', data), status)
+	fits.ffppx(fitsFilePtr[0], imgType, firstpix, numPixels, ffi.cast('void*', buffer), status)
 	assert(status[0] == 0, "ffppx failed with " .. status[0])
 
 	fits.ffclos(fitsFilePtr[0], status);

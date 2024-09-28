@@ -93,17 +93,17 @@ function BMPLoader:load(filename)
 	local height = infoHeader[0].biHeight
 	assert(height >= 0, "currently doesn't support flipped images")
 
-	local data = gcmem.new('unsigned char', width * height * channels)
+	local buffer = gcmem.new('unsigned char', width * height * channels)
 
 	local padding = (4-(channels * width))%4
 
 	for y=height-1,0,-1 do
 		-- write it out as BGR
-		stdio.fread(data + channels * width * y, channels * width, 1, file)
+		stdio.fread(buffer + channels * width * y, channels * width, 1, file)
 
 		for x=0,width-1 do
 			local offset = channels*(x+width*y)
-			data[0+offset], data[1+offset], data[2+offset] = data[2+offset], data[1+offset], data[0+offset]
+			buffer[0+offset], buffer[1+offset], buffer[2+offset] = buffer[2+offset], buffer[1+offset], buffer[0+offset]
 		end
 
 		if padding ~= 0 then
@@ -114,7 +114,7 @@ function BMPLoader:load(filename)
 	stdio.fclose(file)
 
 	return {
-		buffer = data,
+		buffer = buffer,
 		width = width,
 		height = height,
 		channels = channels,
@@ -129,7 +129,7 @@ function BMPLoader:save(args)
 	local width = assert(args.width, "expected width")
 	local height = assert(args.height, "expected height")
 	local channels = assert(args.channels, "expected channels")
-	local data = assert(args.data, "expected data")
+	local buffer = assert(args.buffer, "expected buffer")
 
 	local padding = (4-(channels*width))%4
 	local rowsize = width * channels + padding
@@ -164,7 +164,7 @@ function BMPLoader:save(args)
 
 	local row = gcmem.new('unsigned char', channels * width)
 	for y=height-1,0,-1 do
-		ffi.copy(row, data + channels * width * y, channels * width)
+		ffi.copy(row, buffer + channels * width * y, channels * width)
 		for x=0,width-1 do
 			local rowOffset = channels * x
 			row[0+rowOffset], row[2+rowOffset] = row[2+rowOffset], row[0+rowOffset]

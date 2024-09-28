@@ -159,8 +159,8 @@ function PNGLoader:load(filename)
 		else
 			error("got unknown bit depth: "..tostring(bitDepth))
 		end
-		local data = gcmem.new(format, width * height * channels)
-		-- read data from rows directly
+		local buffer = gcmem.new(format, width * height * channels)
+		-- read buffer from rows directly
 		if bitDepth < 8 then
 			asserteq(channels, 1, "I don't support channels>1 for bitDepth<8")
 			local bitMask = assertindex({
@@ -169,7 +169,7 @@ function PNGLoader:load(filename)
 				[4] = 0xf,
 				[8] = 0xff,
 			}, bitDepth)
-			local dst = data
+			local dst = buffer
 			for y=0,height-1 do
 				local src = ffi.cast('png_byte*', rowPointer[y])
 				local bitOfs = 0
@@ -186,7 +186,7 @@ function PNGLoader:load(filename)
 		else
 			local rowSize = channels*width*ffi.sizeof(format)
 			for y=0,height-1 do
-				ffi.copy(ffi.cast(format..'*', data) + y * rowSize, rowPointer[y], rowSize)
+				ffi.copy(ffi.cast(format..'*', buffer) + y * rowSize, rowPointer[y], rowSize)
 			end
 		end
 
@@ -209,7 +209,7 @@ function PNGLoader:load(filename)
 		end
 
 		local result = {
-			buffer = data,
+			buffer = buffer,
 			width = width,
 			height = height,
 			channels = channels,
@@ -430,7 +430,7 @@ function PNGLoader:save(args)
 	local height = assert(args.height, "expected height")
 	local channels = assert(args.channels, "expected channels")
 	local format = assert(args.format, "expected format")
-	local data = assert(args.data, "expected data")
+	local buffer = assert(args.buffer, "expected buffer")
 	local palette = args.palette	 -- optional, table of N tables of 3 values for RGB constrained to 0-255 for now
 
 	local fp
@@ -492,13 +492,13 @@ function PNGLoader:save(args)
 		local rowptrs = gcmem.new('unsigned char *', height)
 		for y=0,height-1 do
 			-- [[ do I need to allocate these myself?
-			rowptrs[y] = data + channels*width*y
+			rowptrs[y] = buffer + channels*width*y
 			--]]
 			--[[ or does png_write_end / png_destroy_write_struct free them?
 			-- and why does the sample code allocate 2x its requirement?
 			rowptrs[y] = ffi.C.malloc(2 * channels * width)
 			--rowptrs[y] = ffi.C.malloc(channels * width)
-			ffi.copy(rowptrs[y], data + channels*width*y, channels * width)
+			ffi.copy(rowptrs[y], buffer + channels*width*y, channels * width)
 			--]]
 		end
 		png.png_write_image(png_ptr, rowptrs)

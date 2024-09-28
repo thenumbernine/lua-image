@@ -82,10 +82,16 @@ function Image:clear()
 end
 
 local formatInfo = {
+	-- will these always equate, or does that depend on where luajit was compiled?
+	-- to handle that I would like to key them all as ffi.typeof(typename)
+	-- but while ffi.typeof'char'==ffi.typeof'int8_t' is true ...
+	-- ... rawequal(ffi.typeof'char', ffi.typeof'int8_t') is false ...
+	-- therefore I can't use them for keys in tables ...
+	-- so maybe later I'll rewrite all searches to be linear, and still use ffi.typeof() here to ensure type equivalence even if they typename differs
 	['char'] = {bias=128, scale=255},
+	['int8_t'] = {bias=128, scale=255},
 	['signed char'] = {bias=128, scale=255},
 	['unsigned char'] = {scale=255},
-	['int8_t'] = {bias=128, scale=255},
 	['uint8_t'] = {scale=255},
 	['short'] = {bias=32768, scale=65536},
 	['signed short'] = {bias=32768, scale=65536},
@@ -176,15 +182,9 @@ function Image:save(filename, ...)
 	-- may or may not be the same object ...
 	local converted = loader:prepareImage(self)
 
-	loader:save{
+	loader:save(table(converted, {
 		filename = filename,
-		width = converted.width,
-		height = converted.height,
-		channels = converted.channels,
-		format = converted.format,
-		data = converted.buffer,
-		palette = converted.palette,
-	}
+	}))
 
 	-- returns self solely for chaining commands
 	return self
