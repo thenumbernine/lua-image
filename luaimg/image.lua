@@ -59,4 +59,3 @@ function Image:save(...)
 end
 
 return Image
-

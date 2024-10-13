@@ -244,13 +244,13 @@ function PNGLoader:load(filename)
 		how about spearating these ot make sure we get all info
 		btw htere's "get unknown chunks" but is there "get known chunks" ?
 		--]]
---DEBUG:print'reading gAMA'
+--DEBUG(image.luajit.png):print'reading gAMA'
 		local gamma = ffi.new'double[1]'
 		if 0 ~= png.png_get_gAMA(png_ptr, info_ptr, gamma) then
 			result.gamma = gamma[0]
 		end
 
---DEBUG:print'reading cHRM'
+--DEBUG(image.luajit.png):print'reading cHRM'
 		local chromatics = ffi.new'double[8]'
 		if 0 ~= png.png_get_cHRM(png_ptr, info_ptr, chromatics+0, chromatics+1, chromatics+2, chromatics+3, chromatics+4, chromatics+5, chromatics+6, chromatics+7) then
 			result.chromatics = {
@@ -265,7 +265,7 @@ function PNGLoader:load(filename)
 			}
 		end
 
---DEBUG:print'reading sRGB'
+--DEBUG(image.luajit.png):print'reading sRGB'
 		local srgb = ffi.new'int[1]'
 		if 0 ~= png.png_get_sRGB(png_ptr, info_ptr, srgb) then
 			--[[
@@ -277,7 +277,7 @@ function PNGLoader:load(filename)
 			result.srgbIntent = srgb[0]
 		end
 
---DEBUG:print'reading iCCP'
+--DEBUG(image.luajit.png):print'reading iCCP'
 		local name = ffi.new'char*[1]'
 		local compressionType = ffi.new'int[1]'
 		local profile = ffi.new'char*[1]'
@@ -292,7 +292,7 @@ function PNGLoader:load(filename)
 			}
 		end
 
---DEBUG:print'reading text'
+--DEBUG(image.luajit.png):print'reading text'
 		local numText = png.png_get_text(png_ptr, info_ptr, nil, nil)
 		if numText > 0 then
 			local textPtr = ffi.new('png_text*[1]')
@@ -311,7 +311,7 @@ function PNGLoader:load(filename)
 			end)
 		end
 
---DEBUG:print'reading bKGD'
+--DEBUG(image.luajit.png):print'reading bKGD'
 		local background = ffi.new'png_color_16*[1]'
 		if 0 ~= png.png_get_bKGD(png_ptr, info_ptr, background) then
 			result.background = {
@@ -323,7 +323,7 @@ function PNGLoader:load(filename)
 			}
 		end
 
---DEBUG:print'reading pHYs'
+--DEBUG(image.luajit.png):print'reading pHYs'
 		local resX = ffi.new'png_uint_32[1]'
 		local resY = ffi.new'png_uint_32[1]'
 		local unitType = ffi.new'int[1]'
@@ -335,7 +335,7 @@ function PNGLoader:load(filename)
 			}
 		end
 
---DEBUG:print'reading sCAL'
+--DEBUG(image.luajit.png):print'reading sCAL'
 		local unit = ffi.new'int[1]'
 		local width = ffi.new'double[1]'
 		local height = ffi.new'double[1]'
@@ -347,7 +347,7 @@ function PNGLoader:load(filename)
 			}
 		end
 
---DEBUG:print'reading sBIT'
+--DEBUG(image.luajit.png):print'reading sBIT'
 		local sigBit = ffi.new'png_color_8*[1]'
 		if 0 ~= png.png_get_sBIT(png_ptr, info_ptr, sigBit) then
 			result.significant = {
@@ -359,7 +359,7 @@ function PNGLoader:load(filename)
 			}
 		end
 
---DEBUG:print'reading sPLT'
+--DEBUG(image.luajit.png):print'reading sPLT'
 		local spltEntries = ffi.new'png_sPLT_t*[1]'
 		local numSuggestedPalettes = png.png_get_sPLT(png_ptr, info_ptr, spltEntries)
 		if numSuggestedPalettes > 0 then
@@ -382,7 +382,7 @@ function PNGLoader:load(filename)
 			end)
 		end
 
---DEBUG:print'reading hIST'
+--DEBUG(image.luajit.png):print'reading hIST'
 		local hist = ffi.new'png_uint_16p[1]'
 		if 0 ~= png.png_get_hIST(png_ptr, info_ptr, hist)
 		-- hist .. what is the size? the docs and no examples show.

@@ -110,10 +110,10 @@ function TIFFLoader:save(args)
 	local bytesPerSample = ffi.sizeof(format)
 	local bitsPerSample = bit.lshift(bytesPerSample, 3)
 
---DEBUG:print('tiff saving image format', format)
---DEBUG:print('bytes/sample', bytesPerSample)
---DEBUG:print('bits/sample', bitsPerSample)
---DEBUG:print('tiff version '..ffi.string(tiff.TIFFGetVersion()))
+--DEBUG(image.luajit.tiff):print('tiff saving image format', format)
+--DEBUG(image.luajit.tiff):print('bytes/sample', bytesPerSample)
+--DEBUG(image.luajit.tiff):print('bits/sample', bitsPerSample)
+--DEBUG(image.luajit.tiff):print('tiff version '..ffi.string(tiff.TIFFGetVersion()))
 
 	local sampleFormat
 	if ffi.typeof(format) == ffi.typeof'int8_t'
