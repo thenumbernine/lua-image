@@ -8,6 +8,10 @@ local class = require 'ext.class'
 local gcmem = require 'ext.gcmem'
 local path = require 'ext.path'	-- getext
 local table = require 'ext.table'
+local asserteq = require 'ext.assert'.eq
+local assertgt = require 'ext.assert'.gt
+local assertge = require 'ext.assert'.ge
+local assertindex = require 'ext.assert'.index
 
 
 local Image = class()
@@ -249,9 +253,9 @@ for _,info in ipairs{
 		local aIsImage = Image:isa(a)
 		local bIsImage = Image:isa(b)
 		if aIsImage and bIsImage then
-			assert(a.width == b.width)
-			assert(a.height == b.height)
-			assert(a.channels == b.channels)
+			asserteq(a.width, b.width)
+			asserteq(a.height, b.height)
+			asserteq(a.channels, b.channels)
 		end
 		local width = aIsImage and a.width or b.width
 		local height = aIsImage and a.height or b.height
@@ -284,20 +288,20 @@ end
 -- uses the first image's format
 function Image.combine(...)
 	local srcs = {...}
-	assert(#srcs > 0)
+	assertgt(#srcs, 0)
 	local width = srcs[1].width
 	local height = srcs[1].height
 	local channels = srcs[1].channels
 	local format = srcs[1].format
 	for i=2,#srcs do
-		assert(width == srcs[i].width)
-		assert(height == srcs[i].height)
+		asserteq(width, srcs[i].width)
+		asserteq(height, srcs[i].height)
 		if srcs[i].format ~= format then
 			srcs[i] = srcs[i]:setFormat(format)
 		end
 		channels = channels + srcs[i].channels
 	end
-	assert(channels > 0)
+	assertgt(channels, 0)
 	local result = Image(width, height, channels, format)
 	for y=0,height-1 do
 		for x=0,width-1 do
@@ -308,14 +312,14 @@ function Image.combine(...)
 					dstch = dstch + 1
 				end
 			end
-			assert(dstch == channels)
+			asserteq(dstch, channels)
 		end
 	end
 	return result
 end
 
 function Image:greyscale()
-	assert(self.channels >= 3)
+	assertge(self.channels, 3)
 	local dst = Image(self.width, self.height, 1, self.format)
 	for j=0,self.height-1 do
 		for i=0,self.width-1 do
@@ -347,10 +351,10 @@ end
 -- args: x, y, width, height
 -- Maybe rename to 'clip' or 'crop', or is copy good?
 function Image:copy(args)
-	local argsx = math.floor(assert(args.x))
-	local argsy = math.floor(assert(args.y))
-	local argsw = math.floor(assert(args.width))
-	local argsh = math.floor(assert(args.height))
+	local argsx = math.floor(assertindex(args, 'x'))
+	local argsy = math.floor(assertindex(args, 'y'))
+	local argsw = math.floor(assertindex(args, 'width'))
+	local argsh = math.floor(assertindex(args, 'height'))
 	local result = Image(argsw, argsh, self.channels, self.format)
 	for y=0,result.height-1 do
 		for x=0,result.width-1 do
@@ -371,8 +375,8 @@ end
 -- args: image, x, y
 -- paste in-place, so don't make a new copy of the image
 function Image:pasteInto(args)
-	local pasted = assert(args.image)
-	assert(pasted.channels == self.channels)	-- for now ...
+	local pasted = assertindex(args, 'image')
+	asserteq(pasted.channels, self.channels, "channels don't match")	-- for now ...
 	for y=0,pasted.height-1 do
 		for x=0,pasted.width-1 do
 			local destx = x + args.x
@@ -428,7 +432,7 @@ Image.gradientKernels = {
 }
 function Image:gradient(kernelName, offsetX, offsetY)
 	if not kernelName then kernelName = 'Sobel' end
-	local kernel = assert(self.gradientKernels[kernelName], "could not find gradient "..tostring(kernelName))
+	local kernel = assertindex(self.gradientKernels, kernelName, "could not find gradient")
 	-- TODO cache transposed kernels?
 	offsetX = (offsetX or 0) - math.floor(kernel.width/2)
 	offsetY = (offsetY or 0) - math.floor(kernel.height/2)
@@ -439,7 +443,7 @@ end
 
 -- https://en.wikipedia.org//wiki/Curvature
 function Image:curvature()
-	assert(self.channels == 1)
+	asserteq(self.channels, 1)
 	local gradX, gradY = self:gradient()
 	local gradXX, gradXY = gradX:gradient()
 	local gradYX, gradYY = gradY:gradient()
@@ -452,7 +456,7 @@ function Image:curvature()
 end
 
 function Image:curl()
-	assert(self.channels == 2)
+	asserteq(self.channels, 2)
 	local imgX, imgY = self:split()
 	local _, dy_dx = imgX:gradient()
 	local dx_dy = imgY:gradient()
@@ -541,7 +545,7 @@ function Image:blur()
 end
 
 function Image:kernel(kernel, normalize, ofx, ofy)
-	assert(kernel.channels == 1)
+	asserteq(kernel.channels, 1)
 	local dst = Image(self.width, self.height, self.channels, self.format)
 
 	local normalization = 1
@@ -610,9 +614,9 @@ function Image:gaussianBlur(size, sigma)
 end
 
 function Image.dot(a,b)
-	assert(a.width == b.width)
-	assert(a.height == b.height)
-	assert(a.channels == b.channels)
+	asserteq(a.width, b.width)
+	asserteq(a.height, b.height)
+	asserteq(a.channels, b.channels)
 	local sum = 0
 	for i=0,a.width*a.height*a.channels-1 do
 		sum = sum + a.buffer[i] * b.buffer[i]
@@ -770,7 +774,7 @@ function Image:flip(dest)
 end
 
 function Image:getZealousCropRect()
-	assert(self.channels == 4, "zealous crop only works with alpha channels")
+	asserteq(self.channels, 4, "zealous crop only works with alpha channels")
 
 	-- find the first and last cols and rows with content
 	local results = {}
@@ -848,7 +852,7 @@ Regions.removeObject = table.removeObject
 local Rectangle = class()
 
 function Rectangle:drawToImage(image, color)
-	assert(image.channels >= 3)
+	assertge(image.channels, 3)
 	if self.y1 < image.height and self.y2 >= 0 then
 		for y=math.max(0, self.y1),math.min(self.y2, image.height-1) do
 			if self.x1 < image.width and self.x1 >= 0 then
@@ -898,7 +902,7 @@ Blob.insert = table.insert
 Blob.append = table.append
 
 function Blob:drawMaskToImage(image, color)
-	assert(image.channels >= 3)
+	assertge(image.channels, 3)
 	for _,row in ipairs(self) do
 		local y = row.y
 		if y >= 0 and y < image.height then
@@ -918,9 +922,9 @@ function Blob:drawMaskToImage(image, color)
 end
 
 function Blob:copyToImage(dstimg, srcimg)
-	assert(dstimg.channels >= 3)
-	assert(srcimg.width == dstimg.width)
-	assert(srcimg.height == dstimg.height)
+	assertge(dstimg.channels, 3)
+	asserteq(srcimg.width, dstimg.width)
+	asserteq(srcimg.height, dstimg.height)
 	for _,row in ipairs(self) do
 		local y = row.y
 		if y >= 0 and y < dstimg.height then
