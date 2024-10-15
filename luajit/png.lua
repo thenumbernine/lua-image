@@ -1,5 +1,6 @@
 local Loader = require 'image.luajit.loader'
 local ffi = require 'ffi'
+local table = require 'ext.table'
 local range = require 'ext.range'
 local asserteq = require 'ext.assert'.eq
 local assertle = require 'ext.assert'.le
@@ -110,6 +111,7 @@ function PNGLoader:load(filename)
 		info_pp[0] = info_ptr
 
 		png.png_init_io(png_ptr, fp)
+		png.png_set_keep_unknown_chunks(png_ptr, png.PNG_HANDLE_CHUNK_ALWAYS, nil, 0)
 		png.png_set_sig_bytes(png_ptr, 8)
 
 		png.png_read_png(png_ptr, info_ptr, png.PNG_TRANSFORM_IDENTITY, nil)
@@ -405,7 +407,22 @@ function PNGLoader:load(filename)
 			}
 		end
 
-		--png_get_unknown_chunks = [[int png_get_unknown_chunks(png_const_structrp png_ptr, png_inforp info_ptr, png_unknown_chunkpp entries);]],
+		-- TODO call this '.unknown' or just call this '.chunks' ?
+		local chunks = ffi.new'png_unknown_chunk*[1]'
+		local numChunks = png.png_get_unknown_chunks(png_ptr, info_ptr, chunks) 
+--DEBUG(image.luajit.png):print('loading', numChunks, 'unknown chunks')
+		if numChunks ~= 0 then
+			result.unknown = {}
+			for i=0,numChunks-1 do
+				local chunk = chunks[i]
+				local name = ffi.string(chunk.name)
+				result.unknown[name] = {
+					name = name,
+					data = ffi.string(chunk.data, chunk.size),
+					location = chunk.location,
+				}
+			end
+		end
 
 		-- http://www.libpng.org/pub/png/libpng-1.2.5-manual.html
 		-- "If you are not interested, you can pass NULL."
@@ -502,6 +519,27 @@ function PNGLoader:save(args)
 			--]]
 		end
 		png.png_write_image(png_ptr, rowptrs)
+
+		if args.unknown then
+			local names = table.keys(args.unknown)
+			local numChunks = #names
+			local chunks = ffi.new('png_unknown_chunk[?]', numChunks)
+			for i,name in ipairs(names) do	-- does order matter?
+				local src = args.unknown[name]
+				local chunk = chunks[i-1]
+				ffi.fill(chunk.name, 5)
+				ffi.copy(chunk.name, name, math.min(#name, 5))
+				chunk.data = ffi.cast('png_byte*', src.data)
+				chunk.size = #src.data
+				chunk.location = png.PNG_AFTER_IDAT
+			end
+			png.png_set_keep_unknown_chunks(png_ptr, png.PNG_HANDLE_CHUNK_ALWAYS, nil, 0)
+			png.png_set_unknown_chunks(png_ptr, info_ptr, chunks, numChunks)
+			for i=0,numChunks-1 do
+				png.png_set_unknown_chunk_location(png_ptr, info_ptr, i, png.PNG_AFTER_IDAT)
+			end
+		end
+
 		png.png_write_end(png_ptr, info_ptr)
 	end, function(err)
 		return err..'\n'..debug.traceback()

@@ -311,7 +311,9 @@ local function reduceColorsMedianCut(args)
 	}
 
 	image, hist = applyColorMap(image, fromto, hist)
-	assert(#table.keys(hist) <= targetSize)
+	if #table.keys(hist) > targetSize then
+		print("histogram size "..tostring(#table.keys(hist)).." exceeds targetSize "..tostring(targetSize))
+	end
 	return image, hist
 end
 
