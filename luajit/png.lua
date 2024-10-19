@@ -2,9 +2,7 @@ local Loader = require 'image.luajit.loader'
 local ffi = require 'ffi'
 local table = require 'ext.table'
 local range = require 'ext.range'
-local asserteq = require 'ext.assert'.eq
-local assertle = require 'ext.assert'.le
-local assertindex = require 'ext.assert'.index
+local assert = require 'ext.assert'
 local stdio = require 'ffi.req' 'c.stdio'	-- use stdio instead of ffi.C for browser compat
 local png = require 'ffi.req' 'png'
 local gcmem = require 'ext.gcmem'
@@ -164,8 +162,8 @@ function PNGLoader:load(filename)
 		local buffer = gcmem.new(format, width * height * channels)
 		-- read buffer from rows directly
 		if bitDepth < 8 then
-			asserteq(channels, 1, "I don't support channels>1 for bitDepth<8")
-			local bitMask = assertindex({
+			assert.eq(channels, 1, "I don't support channels>1 for bitDepth<8")
+			local bitMask = assert.index({
 				[1] = 1,
 				[2] = 3,
 				[4] = 0xf,
@@ -494,7 +492,7 @@ function PNGLoader:save(args)
 
 		if palette then
 			local numPal = #palette
-			assertle(numPal, png.PNG_MAX_PALETTE_LENGTH, 'palette size exceeded')
+			assert.le(numPal, png.PNG_MAX_PALETTE_LENGTH, 'palette size exceeded')
 			local pngpal = gcmem.new('png_color', numPal)
 			for i,c in ipairs(palette) do
 				pngpal[i-1].red = c[1]

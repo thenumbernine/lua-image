@@ -1,5 +1,5 @@
 #!/usr/bin/env luajit
-local asserteq = require 'ext.assert'.eq
+local assert = require 'ext.assert'
 local Image = require 'image'
 local image = Image(... or 'test.png')
 print(require 'ext.tolua'(image))
@@ -20,4 +20,4 @@ print'saved'
 print'loading'
 local image2 = Image'test-save.png'
 print(require 'ext.tolua'(image2))
-asserteq(image2.unknown.blEH.data, 'Testing Testing')
+assert.eq(image2.unknown.blEH.data, 'Testing Testing')
