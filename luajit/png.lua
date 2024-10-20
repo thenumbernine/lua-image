@@ -83,18 +83,18 @@ function PNGLoader:load(filename)
 		-- open file and test for it being a png
 		local fp = stdio.fopen(filename, 'rb')
 		if fp == nil then
-			error(string.format("[read_png_file] File %s could not be opened for reading", filename))
+			error'failed to open file for reading'
 		end
 
 		stdio.fread(header, 1, 8, fp)
 		if png.png_sig_cmp(header, 0, 8) ~= 0 then
-			error(string.format("[read_png_file] File %s is not recognized as a PNGLoader file", filename))
+			error'file is not recognized as a PNG'
 		end
 
 		-- initialize stuff
 		local png_ptr = png.png_create_read_struct(self.libpngVersion, nil, errorCallback, warningCallback)
 		if png_ptr == nil then
-			error("[read_png_file] png_create_read_struct failed")
+			error'png_create_read_struct failed'
 		end
 
 		local png_pp = ffi.new'png_structp[1]'
@@ -102,7 +102,7 @@ function PNGLoader:load(filename)
 
 		local info_ptr =  png.png_create_info_struct(png_ptr)
 		if info_ptr == nil then
-			error("[read_png_file] png_create_info_struct failed")
+			error'png_create_info_struct failed'
 		end
 
 		local info_pp = ffi.new'png_infop[1]'
@@ -192,20 +192,51 @@ function PNGLoader:load(filename)
 
 		local palette
 		if colorType == png.PNG_COLOR_TYPE_PALETTE then
+			-- get the rgb entries
 			local pal_pp = ffi.new'png_color*[1]'
 			local numPal = ffi.new'int[1]'
 			if 0 == png.png_get_PLTE(png_ptr, info_ptr, pal_pp, numPal) then
-				error("[read_png_file] png_get_PLTE failed")
+				error'png_get_PLTE failed'
+			end
+			-- see if there are alpha components as well
+			local transparencyAlpha = ffi.new('png_bytep[1]', nil)
+			local numTransparent = ffi.new('int[1]', 0)
+			local transparencyColor = ffi.new('png_color_16p[1]', nil)
+			-- ... why would transparencyColor return content when it has no value or purpose here, and the spec says it isn't even stored?
+			if 0 == png.png_get_tRNS(png_ptr, info_ptr, transparencyAlpha, numTransparent, transparencyColor) then
+				-- then there's no transparency info ...
+--DEBUG:assert.eq(transparencyAlpha[0],nil)	-- ... so this should be initialized to nil, right?
+				transparencyAlpha[0] = nil	-- but I don't trust it
 			end
 			palette = {}
-			for i=1,numPal[0] do
+			for i=0,numPal[0]-1 do
 				-- for now palettes are tables of entries of {r,g,b} from 0-255
-				palette[i] = {
-					pal_pp[0][i-1].red,
-					pal_pp[0][i-1].green,
-					pal_pp[0][i-1].blue,
+				local entry = {
+					pal_pp[0][i].red,
+					pal_pp[0][i].green,
+					pal_pp[0][i].blue,
 				}
+				palette[i+1] = entry
+				if transparencyAlpha[0] ~= nil then
+					entry[4] = i < numTransparent[0]
+						and transparencyAlpha[0][i]
+						or 255
+				end
 			end
+		else
+			-- https://refspecs.linuxbase.org/LSB_3.1.0/LSB-Desktop-generic/LSB-Desktop-generic/libpng12.png.get.trns.1.html
+			-- "*numTransparent shall be set to the number of transparency values *trans_values shall be set to the single color value specified for non-paletted images."
+			-- hmm
+			local transparencyAlpha = ffi.new('png_bytep[1]', nil)
+			local numTransparent = ffi.new('int[1]', 0)
+			local transparencyColor = ffi.new('png_color_16p[1]', nil)	-- why would this return content when it has no value or purpose here, and the spec says it isn't even stored?
+			if 0 == png.png_get_tRNS(png_ptr, info_ptr, transparencyAlpha, numTransparent, transparencyColor) then
+				transparencyColor[0] = nil
+			end
+if transparencyColor[0] ~= nil then
+	print('transparencyColor', transparencyColor[0].index, transparencyColor[0].red, transparencyColor[0].green, transparencyColor[0].blue, transparencyColor[0].gray)
+end
+			-- TODO HERE only for the single color set in transparencyColor
 		end
 
 		local result = {
@@ -407,7 +438,7 @@ function PNGLoader:load(filename)
 
 		-- TODO call this '.unknown' or just call this '.chunks' ?
 		local chunks = ffi.new'png_unknown_chunk*[1]'
-		local numChunks = png.png_get_unknown_chunks(png_ptr, info_ptr, chunks) 
+		local numChunks = png.png_get_unknown_chunks(png_ptr, info_ptr, chunks)
 --DEBUG(image.luajit.png):print('loading', numChunks, 'unknown chunks')
 		if numChunks ~= 0 then
 			result.unknown = {}

@@ -148,24 +148,62 @@ function Image:setFormat(newFormat)
 	return dst
 end
 
-function Image:rgb()
-	local dst = Image(self.width, self.height, 3, self.format)
+function Image:rgb(useAlpha)	-- me merging rgb() and rgba()
+	local dstch = useAlpha and 4 or 3
+	local dst = Image(self.width, self.height, dstch, self.format)
 	for j=0,self.height-1 do
 		for i=0,self.width-1 do
+			local dstOffset = dstch * (i + dst.width * j)
 			if self.channels == 1 then
-				local grey = self.buffer[i + self.width * j]
-				dst.buffer[0 + 3 * (i + dst.width * j)] = grey
-				dst.buffer[1 + 3 * (i + dst.width * j)] = grey
-				dst.buffer[2 + 3 * (i + dst.width * j)] = grey
+				if self.palette then
+					local index = self.buffer[i + self.width * j]
+					local palEntry = self.palette[index+1]
+					dst.buffer[0 + dstOffset] = palEntry[1]
+					dst.buffer[1 + dstOffset] = palEntry[2]
+					dst.buffer[2 + dstOffset] = palEntry[3]
+					if useAlpha then
+						dst.buffer[3 + dstOffset] = palEntry[4] or 255
+					end
+				else
+					-- luminance
+					local grey = self.buffer[i + self.width * j]
+					dst.buffer[0 + dstOffset] = grey
+					dst.buffer[1 + dstOffset] = grey
+					dst.buffer[2 + dstOffset] = grey
+					if useAlpha then
+						dst.buffer[3  + dstOffset] = 255
+					end
+				end
+			elseif self.channels == 2 and useAlpha then
+				-- luminance-alpha but only when alpha is being requested ...
+				-- should channels == 2 be treated as RedGreen or LumAlpha?
+				-- or should I convert channels==2 LumAlpha into RGBA in the loader?
+				-- FIXME because otherwise, when converting to RGB, we are throwing away an entire channel ...
+				-- seems at this point I need to introduce some extra information to describe what each channel means (red, green, blue, lum, alpha, etc) and what its format is...
+				local grey = self.buffer[0 + 2 * (i + self.width * j)]
+				local alpha = self.buffer[1 + 2 * (i + self.width * j)]
+				dst.buffer[0 + dstOffset] = grey
+				dst.buffer[1 + dstOffset] = grey
+				dst.buffer[2 + dstOffset] = grey
+				if useAlpha then
+					dst.buffer[3  + dstOffset] = alpha
+				end
 			else
-				local index = self.channels * (i + self.width * j)
-				dst.buffer[0 + 3 * (i + self.width * j)] = self.channels < 1 and 0 or self.buffer[0 + index]
-				dst.buffer[1 + 3 * (i + self.width * j)] = self.channels < 2 and 0 or self.buffer[1 + index]
-				dst.buffer[2 + 3 * (i + self.width * j)] = self.channels < 3 and 0 or self.buffer[2 + index]
+				local srcOffset = self.channels * (i + self.width * j)
+				dst.buffer[0 + dstOffset] = self.channels < 1 and 0 or self.buffer[0 + srcOffset]
+				dst.buffer[1 + dstOffset] = self.channels < 2 and 0 or self.buffer[1 + srcOffset]
+				dst.buffer[2 + dstOffset] = self.channels < 3 and 0 or self.buffer[2 + srcOffset]
+				if useAlpha then
+					dst.buffer[3 + dstOffset] = self.channels < 4 and 255 or self.buffer[3 + srcOffset]
+				end
 			end
 		end
 	end
 	return dst
+end
+
+function Image:rgba()
+	return self:rgb(true)
 end
 
 function Image:clamp(min,max)
