@@ -808,6 +808,25 @@ function Image:flip(dest)
 	return dest
 end
 
+function Image:mirror(dest)
+	local w, h, ch, fmt = self.width, self.height, self.channels, self.format
+	if not dest then
+		dest = Image(w, h, ch, fmt)
+	end
+	local sf = ffi.sizeof(fmt)
+	local rowsize = w * ch * sf
+	for y=0,h-1 do
+		for x=0,w-1 do
+			local i1 = ch * (x + w * y)
+			local i2 = ch * (w-1-x + w * y)
+			for c=0,ch-1 do
+				dest.buffer[c + i1] = self.buffer[c + i2]
+			end
+		end
+	end
+	return dest
+end
+
 function Image:getZealousCropRect()
 	assert.eq(self.channels, 4, "zealous crop only works with alpha channels")
 
