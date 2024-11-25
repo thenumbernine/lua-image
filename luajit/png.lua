@@ -525,12 +525,28 @@ function PNGLoader:save(args)
 			local numPal = #palette
 			assert.le(numPal, png.PNG_MAX_PALETTE_LENGTH, 'palette size exceeded')
 			local pngpal = gcmem.new('png_color', numPal)
+			local hasPalAlpha
 			for i,c in ipairs(palette) do
 				pngpal[i-1].red = c[1]
 				pngpal[i-1].green = c[2]
 				pngpal[i-1].blue = c[3]
+				if c[4] ~= nil and c[4] ~= 255 then
+					hasPalAlpha = true
+				end
 			end
 			png.png_set_PLTE(png_ptr, info_ptr, pngpal, numPal)
+
+			if hasPalAlpha then
+				local numTransparent = numPal
+				local transparencyAlpha = ffi.new('png_byte[?]', numPal)
+				for i,c in ipairs(palette) do
+					transparencyAlpha[i-1] = c[4] or 255
+				end
+				-- can this be nil?
+				--local transparencyColor = ffi.new('png_color_16[1]', nil)
+				local transparencyColor
+				png.png_set_tRNS(png_ptr, info_ptr, transparencyAlpha, numTransparent, transparencyColor);
+			end
 		end
 
 		png.png_write_info(png_ptr, info_ptr)
