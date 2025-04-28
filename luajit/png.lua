@@ -75,48 +75,65 @@ local warningCallback = ffi.cast('png_error_ptr', function(struct, msg)
 end)
 
 function PNGLoader:load(filename)
+--DEBUG(image.luajit.png):print('PNGLoader:load', filename)
 	assert(filename, "expected filename")
 	return select(2, assert(xpcall(function()
 
 		local header = gcmem.new('char',8)	-- 8 is the maximum size that can be checked
+--DEBUG(image.luajit.png):print('...header', header)
 
 		-- open file and test for it being a png
+--DEBUG(image.luajit.png):print('fopen', filename, 'rb')
 		local fp = stdio.fopen(filename, 'rb')
-		if fp == nil then
+--DEBUG(image.luajit.png):print('...got', fp)
+		if fp == ffi.null then
 			error'failed to open file for reading'
 		end
 
+--DEBUG(image.luajit.png):print('fread', header, 1, 8, fp)
 		stdio.fread(header, 1, 8, fp)
 		if png.png_sig_cmp(header, 0, 8) ~= 0 then
 			error'file is not recognized as a PNG'
 		end
 
 		-- initialize stuff
+--DEBUG(image.luajit.png):print('png_create_read_struct', self.libpngVersion, nil, errorCallback, warningCallback)
 		local png_ptr = png.png_create_read_struct(self.libpngVersion, nil, errorCallback, warningCallback)
-		if png_ptr == nil then
+--DEBUG(image.luajit.png):print('...got', png_ptr)
+		if png_ptr == ffi.null then
 			error'png_create_read_struct failed'
 		end
 
 		local png_pp = ffi.new'png_structp[1]'
 		png_pp[0] = png_ptr
 
+--DEBUG(image.luajit.png):print('png_create_info_struct', png_ptr)
 		local info_ptr =  png.png_create_info_struct(png_ptr)
-		if info_ptr == nil then
+--DEBUG(image.luajit.png):print('...got', info_ptr)
+		if info_ptr == ffi.null then
 			error'png_create_info_struct failed'
 		end
 
 		local info_pp = ffi.new'png_infop[1]'
 		info_pp[0] = info_ptr
 
+--DEBUG(image.luajit.png):print('png_init_io', png_ptr, fp)
 		png.png_init_io(png_ptr, fp)
+--DEBUG(image.luajit.png):print('png_set_keep_unknown_chunks', png_ptr, png.PNG_HANDLE_CHUNK_ALWAYS, nil, 0)
 		png.png_set_keep_unknown_chunks(png_ptr, png.PNG_HANDLE_CHUNK_ALWAYS, nil, 0)
+--DEBUG(image.luajit.png):print('png_set_sig_bytes', png_ptr, 8)
 		png.png_set_sig_bytes(png_ptr, 8)
 
+--DEBUG(image.luajit.png):print('png_read_png', png_ptr, info_ptr, png.PNG_TRANSFORM_IDENTITY, nil)
 		png.png_read_png(png_ptr, info_ptr, png.PNG_TRANSFORM_IDENTITY, nil)
 
+--DEBUG(image.luajit.png):print('png_get_image_width', png_ptr, info_ptr)
 		local width = png.png_get_image_width(png_ptr, info_ptr)
+--DEBUG(image.luajit.png):print('png_get_image_height', png_ptr, info_ptr)
 		local height = png.png_get_image_height(png_ptr, info_ptr)
+--DEBUG(image.luajit.png):print('png_get_color_type', png_ptr, info_ptr)
 		local colorType = png.png_get_color_type(png_ptr, info_ptr)
+--DEBUG(image.luajit.png):print('png_get_bit_depth', png_ptr, info_ptr)
 		local bitDepth = png.png_get_bit_depth(png_ptr, info_ptr)
 		if colorType ~= png.PNG_COLOR_TYPE_GRAY
 		and colorType ~= png.PNG_COLOR_TYPE_RGB
@@ -143,6 +160,7 @@ function PNGLoader:load(filename)
 
 		-- TODO replace png_byte etc in the header, lighten the load on luajit ffi
 		assert(ffi.sizeof('png_byte') == 1)
+--DEBUG(image.luajit.png):print('png_get_rows', png_ptr, info_ptr)
 		local rowPointer = png.png_get_rows(png_ptr, info_ptr)
 		local channels = ({
 			[png.PNG_COLOR_TYPE_GRAY] = 1,
@@ -195,6 +213,7 @@ function PNGLoader:load(filename)
 			-- get the rgb entries
 			local pal_pp = ffi.new'png_color*[1]'
 			local numPal = ffi.new'int[1]'
+--DEBUG(image.luajit.png):print('png_get_PLTE', png_ptr, info_ptr, pal_pp, numPal)
 			if 0 == png.png_get_PLTE(png_ptr, info_ptr, pal_pp, numPal) then
 				error'png_get_PLTE failed'
 			end
@@ -203,6 +222,7 @@ function PNGLoader:load(filename)
 			local numTransparent = ffi.new('int[1]', 0)
 			local transparencyColor = ffi.new('png_color_16p[1]', nil)
 			-- ... why would transparencyColor return content when it has no value or purpose here, and the spec says it isn't even stored?
+--DEBUG(image.luajit.png):print('png_get_tRNS', png_ptr, info_ptr, transparencyAlpha, numTransparent, transparencyColor)
 			if 0 == png.png_get_tRNS(png_ptr, info_ptr, transparencyAlpha, numTransparent, transparencyColor) then
 				-- then there's no transparency info ...
 --DEBUG:assert.eq(transparencyAlpha[0],nil)	-- ... so this should be initialized to nil, right?
@@ -217,7 +237,7 @@ function PNGLoader:load(filename)
 					pal_pp[0][i].blue,
 				}
 				palette[i+1] = entry
-				if transparencyAlpha[0] ~= nil then
+				if transparencyAlpha[0] ~= ffi.null then
 					entry[4] = i < numTransparent[0]
 						and transparencyAlpha[0][i]
 						or 255
@@ -230,12 +250,14 @@ function PNGLoader:load(filename)
 			local transparencyAlpha = ffi.new('png_bytep[1]', nil)
 			local numTransparent = ffi.new('int[1]', 0)
 			local transparencyColor = ffi.new('png_color_16p[1]', nil)	-- why would this return content when it has no value or purpose here, and the spec says it isn't even stored?
+--DEBUG(image.luajit.png):print('png_get_tRNS', png_ptr, info_ptr, transparencyAlpha, numTransparent, transparencyColor)
 			if 0 == png.png_get_tRNS(png_ptr, info_ptr, transparencyAlpha, numTransparent, transparencyColor) then
-				transparencyColor[0] = nil
+--DEBUG(image.luajit.png):print('...failed, assigning to nil')
+				transparencyColor[0] = ffi.null
 			end
-if transparencyColor[0] ~= nil then
-	print('transparencyColor', transparencyColor[0].index, transparencyColor[0].red, transparencyColor[0].green, transparencyColor[0].blue, transparencyColor[0].gray)
-end
+--DEBUG(image.luajit.png):if transparencyColor[0] ~= ffi.null then
+--DEBUG(image.luajit.png):	print('transparencyColor', transparencyColor[0].index, transparencyColor[0].red, transparencyColor[0].green, transparencyColor[0].blue, transparencyColor[0].gray)
+--DEBUG(image.luajit.png):end
 			-- TODO HERE only for the single color set in transparencyColor
 		end
 
@@ -315,11 +337,11 @@ end
 		local profileLen = ffi.new'uint32_t[1]'
 		if 0 ~= png.png_get_iCCP(png_ptr, info_ptr, name, compressionType, profile, profileLen) then
 			result.iccProfile = {
-				name = name[0] ~= nil and ffi.string(name[0]) or nil,
+				name = name[0] ~= ffi.null and ffi.string(name[0]) or nil,
 				-- "must always be set to PNG_COMPRESSION_TYPE_BASE"
 				compressionType = compressionType[0],
 				-- "International Color Consortium color profile"
-				profile = profile[0] ~= nil and ffi.string(profile[0], profileLen[0]) or nil,
+				profile = profile[0] ~= ffi.null and ffi.string(profile[0], profileLen[0]) or nil,
 			}
 		end
 
@@ -332,12 +354,12 @@ end
 				local text = textPtr[0][i]
 				return {
 					compression = text.compression,
-					key = text.key ~= nil and ffi.string(text.key) or nil,
-					text = text.text ~= nil and ffi.string(text.text) or nil,--, text.text_length),
+					key = text.key ~= ffi.null and ffi.string(text.key) or nil,
+					text = text.text ~= ffi.null and ffi.string(text.text) or nil,--, text.text_length),
 					text_length = text.text_length,	-- why is this needed? is our string null-term?
 					itxt_length = text.itxt_length,	-- how about this? just to show compression size? or for reading compressed data?
-					lang = text.lang ~= nil and ffi.string(text.lang) or nil,
-					lang_key = text.lang_key ~= nil and ffi.string(text.lang_key) or nil,
+					lang = text.lang ~= ffi.null and ffi.string(text.lang) or nil,
+					lang_key = text.lang_key ~= ffi.null and ffi.string(text.lang_key) or nil,
 				}
 			end)
 		end
@@ -397,7 +419,7 @@ end
 			result.suggestedPalettes = range(0,numSuggestedPalettes-1):mapi(function(i)
 				local splt = spltEntries[0][i]
 				return {
-					name = splt.name ~= nil and ffi.string(splt.name) or nil,
+					name = splt.name ~= ffi.null and ffi.string(splt.name) or nil,
 					depth = splt.depth,
 					entries = range(0,splt.nentries-1):mapi(function(j)
 						local entry = splt.entries[j]
@@ -462,8 +484,10 @@ end
 		png.png_destroy_read_struct(png_pp, info_pp, nil)	--end_pp)
 		stdio.fclose(fp)
 
+--DEBUG(image.luajit.png):print('PNGLoader return', result)
 		return result
 	end, function(err)
+--DEBUG(image.luajit.png):print('PNGLoader got err', err) print(debug.traceback())
 		return 'for filename '..filename..'\n'..err..'\n'..debug.traceback()
 	end)))
 end
@@ -484,17 +508,20 @@ function PNGLoader:save(args)
 	local info_pp = ffi.new'png_infop[1]'
 	local res, err = xpcall(function()
 		fp = stdio.fopen(filename, 'wb')
-		if fp == nil then error("failed to open file "..filename.." for writing") end
+		if fp == ffi.null then
+			fp = nil
+			error("failed to open file "..filename.." for writing")
+		end
 
 		-- initialize stuff
 		local png_ptr = png.png_create_write_struct(self.libpngVersion, nil, nil, nil)
-		if png_ptr == nil then
+		if png_ptr == ffi.null then
 			error "[write_png_file] png_create_write_struct failed"
 		end
 		png_pp[0] = png_ptr
 
 		local info_ptr = png.png_create_info_struct(png_ptr)
-		if info_ptr == nil then
+		if info_ptr == ffi.null then
 			error("[write_png_file] png_create_info_struct failed")
 		end
 		info_pp[0] = info_ptr
@@ -591,11 +618,11 @@ function PNGLoader:save(args)
 	end)
 
 	-- cleanup
-	if png_pp[0] ~= nil then
+	if png_pp[0] ~= ffi.null then
 		-- TODO if info_pp[0] == null then do I have to pass nil instead of info_pp ?
 		png.png_destroy_write_struct(png_pp, info_pp)
 	end
-	if fp ~= nil then
+	if fp then
 		stdio.fclose(fp)
 	end
 
