@@ -9,14 +9,7 @@ local gcmem = require 'ext.gcmem'
 
 local PNGLoader = Loader:subclass()
 
--- TODO just pick a version and stick with it?
-if ffi.os == 'Windows' then
-	PNGLoader.libpngVersion = '1.6.37'
-elseif ffi.os == 'OSX' then
-	PNGLoader.libpngVersion = '1.6.43'
-elseif ffi.os == 'Linux' then
-	PNGLoader.libpngVersion = '1.6.39'
-end
+PNGLoader.libpngVersion = png.PNG_LIBPNG_VER_STRING
 
 --[[
 http://www.libpng.org/pub/png/spec/1.2/PNG-Chunks.html
