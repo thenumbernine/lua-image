@@ -75,31 +75,31 @@ local warningCallback = ffi.cast('png_error_ptr', function(struct, msg)
 end)
 
 function PNGLoader:load(filename)
---DEBUG(image.luajit.png):print('PNGLoader:load', filename)
+--DEBUG(@5):print('PNGLoader:load', filename)
 	assert(filename, "expected filename")
 	return select(2, assert(xpcall(function()
 
 		local header = gcmem.new('char',8)	-- 8 is the maximum size that can be checked
---DEBUG(image.luajit.png):print('...header', header)
+--DEBUG(@5):print('...header', header)
 
 		-- open file and test for it being a png
---DEBUG(image.luajit.png):print('fopen', filename, 'rb')
+--DEBUG(@5):print('fopen', filename, 'rb')
 		local fp = stdio.fopen(filename, 'rb')
---DEBUG(image.luajit.png):print('...got', fp)
+--DEBUG(@5):print('...got', fp)
 		if fp == ffi.null then
 			error'failed to open file for reading'
 		end
 
---DEBUG(image.luajit.png):print('fread', header, 1, 8, fp)
+--DEBUG(@5):print('fread', header, 1, 8, fp)
 		stdio.fread(header, 1, 8, fp)
 		if png.png_sig_cmp(header, 0, 8) ~= 0 then
 			error'file is not recognized as a PNG'
 		end
 
 		-- initialize stuff
---DEBUG(image.luajit.png):print('png_create_read_struct', self.libpngVersion, nil, errorCallback, warningCallback)
+--DEBUG(@5):print('png_create_read_struct', self.libpngVersion, nil, errorCallback, warningCallback)
 		local png_ptr = png.png_create_read_struct(self.libpngVersion, nil, errorCallback, warningCallback)
---DEBUG(image.luajit.png):print('...got', png_ptr)
+--DEBUG(@5):print('...got', png_ptr)
 		if png_ptr == ffi.null then
 			error'png_create_read_struct failed'
 		end
@@ -107,9 +107,9 @@ function PNGLoader:load(filename)
 		local png_pp = ffi.new'png_structp[1]'
 		png_pp[0] = png_ptr
 
---DEBUG(image.luajit.png):print('png_create_info_struct', png_ptr)
+--DEBUG(@5):print('png_create_info_struct', png_ptr)
 		local info_ptr =  png.png_create_info_struct(png_ptr)
---DEBUG(image.luajit.png):print('...got', info_ptr)
+--DEBUG(@5):print('...got', info_ptr)
 		if info_ptr == ffi.null then
 			error'png_create_info_struct failed'
 		end
@@ -117,23 +117,23 @@ function PNGLoader:load(filename)
 		local info_pp = ffi.new'png_infop[1]'
 		info_pp[0] = info_ptr
 
---DEBUG(image.luajit.png):print('png_init_io', png_ptr, fp)
+--DEBUG(@5):print('png_init_io', png_ptr, fp)
 		png.png_init_io(png_ptr, fp)
---DEBUG(image.luajit.png):print('png_set_keep_unknown_chunks', png_ptr, png.PNG_HANDLE_CHUNK_ALWAYS, nil, 0)
+--DEBUG(@5):print('png_set_keep_unknown_chunks', png_ptr, png.PNG_HANDLE_CHUNK_ALWAYS, nil, 0)
 		png.png_set_keep_unknown_chunks(png_ptr, png.PNG_HANDLE_CHUNK_ALWAYS, nil, 0)
---DEBUG(image.luajit.png):print('png_set_sig_bytes', png_ptr, 8)
+--DEBUG(@5):print('png_set_sig_bytes', png_ptr, 8)
 		png.png_set_sig_bytes(png_ptr, 8)
 
---DEBUG(image.luajit.png):print('png_read_png', png_ptr, info_ptr, png.PNG_TRANSFORM_IDENTITY, nil)
+--DEBUG(@5):print('png_read_png', png_ptr, info_ptr, png.PNG_TRANSFORM_IDENTITY, nil)
 		png.png_read_png(png_ptr, info_ptr, png.PNG_TRANSFORM_IDENTITY, nil)
 
---DEBUG(image.luajit.png):print('png_get_image_width', png_ptr, info_ptr)
+--DEBUG(@5):print('png_get_image_width', png_ptr, info_ptr)
 		local width = png.png_get_image_width(png_ptr, info_ptr)
---DEBUG(image.luajit.png):print('png_get_image_height', png_ptr, info_ptr)
+--DEBUG(@5):print('png_get_image_height', png_ptr, info_ptr)
 		local height = png.png_get_image_height(png_ptr, info_ptr)
---DEBUG(image.luajit.png):print('png_get_color_type', png_ptr, info_ptr)
+--DEBUG(@5):print('png_get_color_type', png_ptr, info_ptr)
 		local colorType = png.png_get_color_type(png_ptr, info_ptr)
---DEBUG(image.luajit.png):print('png_get_bit_depth', png_ptr, info_ptr)
+--DEBUG(@5):print('png_get_bit_depth', png_ptr, info_ptr)
 		local bitDepth = png.png_get_bit_depth(png_ptr, info_ptr)
 		if colorType ~= png.PNG_COLOR_TYPE_GRAY
 		and colorType ~= png.PNG_COLOR_TYPE_RGB
@@ -160,7 +160,7 @@ function PNGLoader:load(filename)
 
 		-- TODO replace png_byte etc in the header, lighten the load on luajit ffi
 		assert(ffi.sizeof('png_byte') == 1)
---DEBUG(image.luajit.png):print('png_get_rows', png_ptr, info_ptr)
+--DEBUG(@5):print('png_get_rows', png_ptr, info_ptr)
 		local rowPointer = png.png_get_rows(png_ptr, info_ptr)
 		local channels = ({
 			[png.PNG_COLOR_TYPE_GRAY] = 1,
@@ -213,7 +213,7 @@ function PNGLoader:load(filename)
 			-- get the rgb entries
 			local pal_pp = ffi.new'png_color*[1]'
 			local numPal = ffi.new'int[1]'
---DEBUG(image.luajit.png):print('png_get_PLTE', png_ptr, info_ptr, pal_pp, numPal)
+--DEBUG(@5):print('png_get_PLTE', png_ptr, info_ptr, pal_pp, numPal)
 			if 0 == png.png_get_PLTE(png_ptr, info_ptr, pal_pp, numPal) then
 				error'png_get_PLTE failed'
 			end
@@ -222,7 +222,7 @@ function PNGLoader:load(filename)
 			local numTransparent = ffi.new('int[1]', 0)
 			local transparencyColor = ffi.new('png_color_16p[1]', nil)
 			-- ... why would transparencyColor return content when it has no value or purpose here, and the spec says it isn't even stored?
---DEBUG(image.luajit.png):print('png_get_tRNS', png_ptr, info_ptr, transparencyAlpha, numTransparent, transparencyColor)
+--DEBUG(@5):print('png_get_tRNS', png_ptr, info_ptr, transparencyAlpha, numTransparent, transparencyColor)
 			if 0 == png.png_get_tRNS(png_ptr, info_ptr, transparencyAlpha, numTransparent, transparencyColor) then
 				-- then there's no transparency info ...
 --DEBUG:assert.eq(transparencyAlpha[0],nil)	-- ... so this should be initialized to nil, right?
@@ -250,14 +250,14 @@ function PNGLoader:load(filename)
 			local transparencyAlpha = ffi.new('png_bytep[1]', nil)
 			local numTransparent = ffi.new('int[1]', 0)
 			local transparencyColor = ffi.new('png_color_16p[1]', nil)	-- why would this return content when it has no value or purpose here, and the spec says it isn't even stored?
---DEBUG(image.luajit.png):print('png_get_tRNS', png_ptr, info_ptr, transparencyAlpha, numTransparent, transparencyColor)
+--DEBUG(@5):print('png_get_tRNS', png_ptr, info_ptr, transparencyAlpha, numTransparent, transparencyColor)
 			if 0 == png.png_get_tRNS(png_ptr, info_ptr, transparencyAlpha, numTransparent, transparencyColor) then
---DEBUG(image.luajit.png):print('...failed, assigning to nil')
+--DEBUG(@5):print('...failed, assigning to nil')
 				transparencyColor[0] = ffi.null
 			end
---DEBUG(image.luajit.png):if transparencyColor[0] ~= ffi.null then
---DEBUG(image.luajit.png):	print('transparencyColor', transparencyColor[0].index, transparencyColor[0].red, transparencyColor[0].green, transparencyColor[0].blue, transparencyColor[0].gray)
---DEBUG(image.luajit.png):end
+--DEBUG(@5):if transparencyColor[0] ~= ffi.null then
+--DEBUG(@5):	print('transparencyColor', transparencyColor[0].index, transparencyColor[0].red, transparencyColor[0].green, transparencyColor[0].blue, transparencyColor[0].gray)
+--DEBUG(@5):end
 			-- TODO HERE only for the single color set in transparencyColor
 		end
 
@@ -297,13 +297,13 @@ function PNGLoader:load(filename)
 		how about spearating these ot make sure we get all info
 		btw htere's "get unknown chunks" but is there "get known chunks" ?
 		--]]
---DEBUG(image.luajit.png):print'reading gAMA'
+--DEBUG(@5):print'reading gAMA'
 		local gamma = ffi.new'double[1]'
 		if 0 ~= png.png_get_gAMA(png_ptr, info_ptr, gamma) then
 			result.gamma = gamma[0]
 		end
 
---DEBUG(image.luajit.png):print'reading cHRM'
+--DEBUG(@5):print'reading cHRM'
 		local chromatics = ffi.new'double[8]'
 		if 0 ~= png.png_get_cHRM(png_ptr, info_ptr, chromatics+0, chromatics+1, chromatics+2, chromatics+3, chromatics+4, chromatics+5, chromatics+6, chromatics+7) then
 			result.chromatics = {
@@ -318,7 +318,7 @@ function PNGLoader:load(filename)
 			}
 		end
 
---DEBUG(image.luajit.png):print'reading sRGB'
+--DEBUG(@5):print'reading sRGB'
 		local srgb = ffi.new'int[1]'
 		if 0 ~= png.png_get_sRGB(png_ptr, info_ptr, srgb) then
 			--[[
@@ -330,7 +330,7 @@ function PNGLoader:load(filename)
 			result.srgbIntent = srgb[0]
 		end
 
---DEBUG(image.luajit.png):print'reading iCCP'
+--DEBUG(@5):print'reading iCCP'
 		local name = ffi.new'char*[1]'
 		local compressionType = ffi.new'int[1]'
 		local profile = ffi.new'char*[1]'
@@ -345,7 +345,7 @@ function PNGLoader:load(filename)
 			}
 		end
 
---DEBUG(image.luajit.png):print'reading text'
+--DEBUG(@5):print'reading text'
 		local numText = png.png_get_text(png_ptr, info_ptr, nil, nil)
 		if numText > 0 then
 			local textPtr = ffi.new('png_text*[1]')
@@ -364,7 +364,7 @@ function PNGLoader:load(filename)
 			end)
 		end
 
---DEBUG(image.luajit.png):print'reading bKGD'
+--DEBUG(@5):print'reading bKGD'
 		local background = ffi.new'png_color_16*[1]'
 		if 0 ~= png.png_get_bKGD(png_ptr, info_ptr, background) then
 			result.background = {
@@ -376,7 +376,7 @@ function PNGLoader:load(filename)
 			}
 		end
 
---DEBUG(image.luajit.png):print'reading pHYs'
+--DEBUG(@5):print'reading pHYs'
 		local resX = ffi.new'png_uint_32[1]'
 		local resY = ffi.new'png_uint_32[1]'
 		local unitType = ffi.new'int[1]'
@@ -388,7 +388,7 @@ function PNGLoader:load(filename)
 			}
 		end
 
---DEBUG(image.luajit.png):print'reading sCAL'
+--DEBUG(@5):print'reading sCAL'
 		local unit = ffi.new'int[1]'
 		local width = ffi.new'double[1]'
 		local height = ffi.new'double[1]'
@@ -400,7 +400,7 @@ function PNGLoader:load(filename)
 			}
 		end
 
---DEBUG(image.luajit.png):print'reading sBIT'
+--DEBUG(@5):print'reading sBIT'
 		local sigBit = ffi.new'png_color_8*[1]'
 		if 0 ~= png.png_get_sBIT(png_ptr, info_ptr, sigBit) then
 			result.significant = {
@@ -412,7 +412,7 @@ function PNGLoader:load(filename)
 			}
 		end
 
---DEBUG(image.luajit.png):print'reading sPLT'
+--DEBUG(@5):print'reading sPLT'
 		local spltEntries = ffi.new'png_sPLT_t*[1]'
 		local numSuggestedPalettes = png.png_get_sPLT(png_ptr, info_ptr, spltEntries)
 		if numSuggestedPalettes > 0 then
@@ -435,7 +435,7 @@ function PNGLoader:load(filename)
 			end)
 		end
 
---DEBUG(image.luajit.png):print'reading hIST'
+--DEBUG(@5):print'reading hIST'
 		local hist = ffi.new'png_uint_16p[1]'
 		if 0 ~= png.png_get_hIST(png_ptr, info_ptr, hist)
 		-- hist .. what is the size? the docs and no examples show.
@@ -461,7 +461,7 @@ function PNGLoader:load(filename)
 		-- TODO call this '.unknown' or just call this '.chunks' ?
 		local chunks = ffi.new'png_unknown_chunk*[1]'
 		local numChunks = png.png_get_unknown_chunks(png_ptr, info_ptr, chunks)
---DEBUG(image.luajit.png):print('loading', numChunks, 'unknown chunks')
+--DEBUG(@5):print('loading', numChunks, 'unknown chunks')
 		if numChunks ~= 0 then
 			result.unknown = {}
 			for i=0,numChunks-1 do
@@ -484,10 +484,10 @@ function PNGLoader:load(filename)
 		png.png_destroy_read_struct(png_pp, info_pp, nil)	--end_pp)
 		stdio.fclose(fp)
 
---DEBUG(image.luajit.png):print('PNGLoader return', result)
+--DEBUG(@5):print('PNGLoader return', result)
 		return result
 	end, function(err)
---DEBUG(image.luajit.png):print('PNGLoader got err', err) print(debug.traceback())
+--DEBUG(@5):print('PNGLoader got err', err) print(debug.traceback())
 		return 'for filename '..filename..'\n'..err..'\n'..debug.traceback()
 	end)))
 end
