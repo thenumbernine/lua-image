@@ -67,6 +67,424 @@ local warningCallback = ffi.cast('png_error_ptr', function(struct, msg)
 	print('png warning:', ffi.string(msg))
 end)
 
+local headerSize = 8
+
+local function pngLoadBody(args)
+
+	-- initialize stuff
+--DEBUG(@5):print('png_create_read_struct', PNGLoader.libpngVersion, nil, errorCallback, warningCallback)
+	local png_ptr = png.png_create_read_struct(PNGLoader.libpngVersion, nil, errorCallback, warningCallback)
+--DEBUG(@5):print('...got', png_ptr)
+	if png_ptr == ffi.null then
+		error'png_create_read_struct failed'
+	end
+
+	local png_pp = ffi.new'png_structp[1]'
+	png_pp[0] = png_ptr
+
+--DEBUG(@5):print('png_create_info_struct', png_ptr)
+	local info_ptr =  png.png_create_info_struct(png_ptr)
+--DEBUG(@5):print('...got', info_ptr)
+	if info_ptr == ffi.null then
+		error'png_create_info_struct failed'
+	end
+
+	local info_pp = ffi.new'png_infop[1]'
+	info_pp[0] = info_ptr
+
+	args.init(png_ptr)	-- init the png
+
+--DEBUG(@5):print('png_set_sig_bytes', png_ptr, headerSize)
+	png.png_set_sig_bytes(png_ptr, headerSize)
+
+--DEBUG(@5):print('png_set_keep_unknown_chunks', png_ptr, png.PNG_HANDLE_CHUNK_ALWAYS, nil, 0)
+	png.png_set_keep_unknown_chunks(png_ptr, png.PNG_HANDLE_CHUNK_ALWAYS, nil, 0)
+
+	-- [[ using png_read_png
+--DEBUG(@5):print('png_read_png', png_ptr, info_ptr, png.PNG_TRANSFORM_IDENTITY, nil)
+	-- "This call is equivalent to png_read_info(), followed the set of transformations indicated by the transform mask, then png_read_image(), and finally png_read_end()."
+	png.png_read_png(png_ptr, info_ptr, png.PNG_TRANSFORM_IDENTITY, nil)
+	--]]
+	--[[ using png_read_info / png_read_image / png_read_end:
+--DEBUG(@5):print('png_read_info', png_ptr, info_ptr)
+	png.png_read_info(png_ptr, info_ptr)
+	--]]
+
+--DEBUG(@5):print('png_get_image_width', png_ptr, info_ptr)
+	local width = png.png_get_image_width(png_ptr, info_ptr)
+--DEBUG(@5):print('png_get_image_height', png_ptr, info_ptr)
+	local height = png.png_get_image_height(png_ptr, info_ptr)
+--DEBUG(@5):print('png_get_color_type', png_ptr, info_ptr)
+	local colorType = png.png_get_color_type(png_ptr, info_ptr)
+--DEBUG(@5):print('png_get_bit_depth', png_ptr, info_ptr)
+	local bitDepth = png.png_get_bit_depth(png_ptr, info_ptr)
+	if colorType ~= png.PNG_COLOR_TYPE_GRAY
+	and colorType ~= png.PNG_COLOR_TYPE_RGB
+	and colorType ~= png.PNG_COLOR_TYPE_PALETTE
+	and colorType ~= png.PNG_COLOR_TYPE_GRAY_ALPHA
+	and colorType ~= png.PNG_COLOR_TYPE_RGB_ALPHA
+	then
+		error("got unknown colorType: "..tostring(colorType))
+	end
+
+	if not (bitDepth == 1
+		or bitDepth == 2
+		or bitDepth == 4
+		or bitDepth % 8 == 0
+	) then
+		error("got unknown bit depth: "..tostring(bitDepth))
+	end
+
+	--local number_of_passes = png.png_set_interlace_handling(png_ptr)
+	-- looks like png 1.5 needed this but png 1.6 doesn't
+	--png.png_read_update_info(png_ptr, info_ptr)
+
+	-- read file
+
+	-- TODO replace png_byte etc in the header, lighten the load on luajit ffi
+	assert(ffi.sizeof('png_byte') == 1)
+
+	local channels = ({
+		[png.PNG_COLOR_TYPE_GRAY] = 1,
+		[png.PNG_COLOR_TYPE_PALETTE] = 1,
+		[png.PNG_COLOR_TYPE_GRAY_ALPHA] = 2,
+		[png.PNG_COLOR_TYPE_RGB] = 3,
+		[png.PNG_COLOR_TYPE_RGB_ALPHA] = 4,
+	})[colorType] or error('got unknown colorType')
+	local format
+	if bitDepth <= 8 then
+		format = 'uint8_t'
+	elseif bitDepth == 16 then
+		format = 'uint16_t'
+	else
+		error("got unknown bit depth: "..tostring(bitDepth))
+	end
+	local buffer = gcmem.new(format, width * height * channels)
+
+	-- [[ using png_read_png
+--DEBUG(@5):print('png_get_rows', png_ptr, info_ptr)
+	local rowPointer = png.png_get_rows(png_ptr, info_ptr)
+	--]]
+	--[[ used with png_read_info / png_read_image / png_read_end
+--DEBUG(@5):print('allocating rowPointer...')
+	local rowPointer = ffi.new('png_bytep[?]', height)
+--DEBUG(@5):print('png_read_image', png_ptr, rowPointer)
+	png.png_read_image(png_ptr, rowPointer)
+	--]]
+
+	-- read buffer from rows directly
+	if bitDepth < 8 then
+		assert.eq(channels, 1, "I don't support channels>1 for bitDepth<8")
+		local bitMask = assert.index({
+			[1] = 1,
+			[2] = 3,
+			[4] = 0xf,
+			[8] = 0xff,
+		}, bitDepth)
+		local dst = buffer
+		for y=0,height-1 do
+			local src = ffi.cast('png_byte*', rowPointer[y])
+			local bitOfs = 0
+			for x=0,width-1 do
+				dst[0] = bit.band(bitMask, bit.rshift(src[0], 8 - bitOfs - bitDepth))
+				dst = dst + 1
+				bitOfs = bitOfs + bitDepth
+				if bitOfs >= 8 then
+					bitOfs = bitOfs - 8
+					src = src + 1
+				end
+			end
+		end
+	else
+		local rowSize = channels*width*ffi.sizeof(format)
+		for y=0,height-1 do
+			ffi.copy(ffi.cast(format..'*', buffer) + y * rowSize, rowPointer[y], rowSize)
+		end
+	end
+
+	local palette
+	if colorType == png.PNG_COLOR_TYPE_PALETTE then
+		-- get the rgb entries
+		local pal_pp = ffi.new'png_color*[1]'
+		local numPal = ffi.new'int[1]'
+--DEBUG(@5):print('png_get_PLTE', png_ptr, info_ptr, pal_pp, numPal)
+		if 0 == png.png_get_PLTE(png_ptr, info_ptr, pal_pp, numPal) then
+			error'png_get_PLTE failed'
+		end
+		-- see if there are alpha components as well
+		local transparencyAlpha = ffi.new('png_bytep[1]', nil)
+		local numTransparent = ffi.new('int[1]', 0)
+		local transparencyColor = ffi.new('png_color_16p[1]', nil)
+		-- ... why would transparencyColor return content when it has no value or purpose here, and the spec says it isn't even stored?
+--DEBUG(@5):print('png_get_tRNS', png_ptr, info_ptr, transparencyAlpha, numTransparent, transparencyColor)
+		if 0 == png.png_get_tRNS(png_ptr, info_ptr, transparencyAlpha, numTransparent, transparencyColor) then
+			-- then there's no transparency info ...
+--DEBUG:assert.eq(transparencyAlpha[0],nil)	-- ... so this should be initialized to nil, right?
+			transparencyAlpha[0] = nil	-- but I don't trust it
+		end
+		palette = {}
+		for i=0,numPal[0]-1 do
+			-- for now palettes are tables of entries of {r,g,b} from 0-255
+			local entry = {
+				pal_pp[0][i].red,
+				pal_pp[0][i].green,
+				pal_pp[0][i].blue,
+			}
+			palette[i+1] = entry
+			if transparencyAlpha[0] ~= ffi.null then
+				entry[4] = i < numTransparent[0]
+					and transparencyAlpha[0][i]
+					or 255
+			end
+		end
+	else
+		-- https://refspecs.linuxbase.org/LSB_3.1.0/LSB-Desktop-generic/LSB-Desktop-generic/libpng12.png.get.trns.1.html
+		-- "*numTransparent shall be set to the number of transparency values *trans_values shall be set to the single color value specified for non-paletted images."
+		-- hmm
+		local transparencyAlpha = ffi.new('png_bytep[1]', nil)
+		local numTransparent = ffi.new('int[1]', 0)
+		local transparencyColor = ffi.new('png_color_16p[1]', nil)	-- why would this return content when it has no value or purpose here, and the spec says it isn't even stored?
+--DEBUG(@5):print('png_get_tRNS', png_ptr, info_ptr, transparencyAlpha, numTransparent, transparencyColor)
+		if 0 == png.png_get_tRNS(png_ptr, info_ptr, transparencyAlpha, numTransparent, transparencyColor) then
+--DEBUG(@5):print('...failed, assigning to nil')
+			transparencyColor[0] = ffi.null
+		end
+--DEBUG(@5):if transparencyColor[0] ~= ffi.null then
+--DEBUG(@5):	print('transparencyColor', transparencyColor[0].index, transparencyColor[0].red, transparencyColor[0].green, transparencyColor[0].blue, transparencyColor[0].gray)
+--DEBUG(@5):end
+		-- TODO HERE only for the single color set in transparencyColor
+	end
+
+	local result = {
+		buffer = buffer,
+		width = width,
+		height = height,
+		channels = channels,
+		format = format,
+		palette = palette,
+	}
+	--[[
+	see if we can't load any other tags ...
+	TODO save them too? maybe not, idk.
+	what are all our chunks?
+	http://www.libpng.org/pub/png/spec/1.2/PNG-Chunks.html
+	IHDR - header - check
+	PLTE - palette - check
+	IDAT - image data - check
+	IEND - ending - check
+	tRNS - transparency - check i guess, for RGBA images i guess
+	gAMA ...
+	sRGB ...
+	iCCP ...
+	iTXt, tEXt, zTXt ...
+	bKGD
+	pHYs
+	sCAL
+	sBIT
+	sPLT
+	hIST
+	png_uint_32 png_get_pCAL(png_const_structrp png_ptr, png_inforp info_ptr, png_charp *purpose, png_int_32 *X0, png_int_32 *X1, int * png_uint_32, int *nparams, png_charp *units, png_charpp *params);
+	png_uint_32 png_get_oFFs(png_const_structrp png_ptr, png_const_inforp info_ptr, png_int_32 *offset_x, png_int_32 *offset_y, int *unit_type);
+	png_uint_32 png_get_eXIf(png_const_structrp png_ptr, png_inforp info_ptr, png_bytep *exif);
+
+	TODO TODO seems the png functions are groupe dbetween getters of chunk info directly, and lots of helper functions
+	how about spearating these ot make sure we get all info
+	btw htere's "get unknown chunks" but is there "get known chunks" ?
+	--]]
+--DEBUG(@5):print'reading gAMA'
+	local gamma = ffi.new'double[1]'
+	if 0 ~= png.png_get_gAMA(png_ptr, info_ptr, gamma) then
+		result.gamma = gamma[0]
+	end
+
+--DEBUG(@5):print'reading cHRM'
+	local chromatics = ffi.new'double[8]'
+	if 0 ~= png.png_get_cHRM(png_ptr, info_ptr, chromatics+0, chromatics+1, chromatics+2, chromatics+3, chromatics+4, chromatics+5, chromatics+6, chromatics+7) then
+		result.chromatics = {
+			whiteX = chromatics[0],
+			whiteY = chromatics[1],
+			redX = chromatics[2],
+			redY = chromatics[3],
+			greenX = chromatics[4],
+			greenY = chromatics[5],
+			blueX = chromatics[6],
+			blueY = chromatics[7],
+		}
+	end
+
+--DEBUG(@5):print'reading sRGB'
+	local srgb = ffi.new'int[1]'
+	if 0 ~= png.png_get_sRGB(png_ptr, info_ptr, srgb) then
+		--[[
+		0: Perceptual
+		1: Relative colorimetric
+		2: Saturation
+		3: Absolute colorimetric
+		--]]
+		result.srgbIntent = srgb[0]
+	end
+
+--DEBUG(@5):print'reading iCCP'
+	local name = ffi.new'char*[1]'
+	local compressionType = ffi.new'int[1]'
+	local profile = ffi.new'char*[1]'
+	local profileLen = ffi.new'uint32_t[1]'
+	if 0 ~= png.png_get_iCCP(png_ptr, info_ptr, name, compressionType, profile, profileLen) then
+		result.iccProfile = {
+			name = name[0] ~= ffi.null and ffi.string(name[0]) or nil,
+			-- "must always be set to PNG_COMPRESSION_TYPE_BASE"
+			compressionType = compressionType[0],
+			-- "International Color Consortium color profile"
+			profile = profile[0] ~= ffi.null and ffi.string(profile[0], profileLen[0]) or nil,
+		}
+	end
+
+--DEBUG(@5):print'reading text'
+	local numText = png.png_get_text(png_ptr, info_ptr, nil, nil)
+	if numText > 0 then
+		local textPtr = ffi.new('png_text*[1]')
+		png.png_get_text(png_ptr, info_ptr, textPtr, nil)
+		result.text = range(0,numText-1):mapi(function(i)
+			local text = textPtr[0][i]
+			return {
+				compression = text.compression,
+				key = text.key ~= ffi.null and ffi.string(text.key) or nil,
+				text = text.text ~= ffi.null and ffi.string(text.text) or nil,--, text.text_length),
+				text_length = text.text_length,	-- why is this needed? is our string null-term?
+				itxt_length = text.itxt_length,	-- how about this? just to show compression size? or for reading compressed data?
+				lang = text.lang ~= ffi.null and ffi.string(text.lang) or nil,
+				lang_key = text.lang_key ~= ffi.null and ffi.string(text.lang_key) or nil,
+			}
+		end)
+	end
+
+--DEBUG(@5):print'reading bKGD'
+	local background = ffi.new'png_color_16*[1]'
+	if 0 ~= png.png_get_bKGD(png_ptr, info_ptr, background) then
+		result.background = {
+			index = background[0].index,
+			red = background[0].red,
+			green = background[0].green,
+			blue = background[0].blue,
+			gray = background[0].gray,
+		}
+	end
+
+--DEBUG(@5):print'reading pHYs'
+	local resX = ffi.new'png_uint_32[1]'
+	local resY = ffi.new'png_uint_32[1]'
+	local unitType = ffi.new'int[1]'
+	if 0 ~= png.png_get_pHYs(png_ptr, info_ptr, resX, resY, unitType) then
+		result.physical = {
+			resX = resX[0],
+			resY = resY[0],
+			unitType = unitType[0],
+		}
+	end
+
+--DEBUG(@5):print'reading sCAL'
+	local unit = ffi.new'int[1]'
+	local width = ffi.new'double[1]'
+	local height = ffi.new'double[1]'
+	if 0 ~= png.png_get_sCAL(png_ptr, info_ptr, unit, width, height) then
+		result.scale = {
+			unit = unit[0],
+			width = width[0],
+			height = height[0],
+		}
+	end
+
+--DEBUG(@5):print'reading sBIT'
+	local sigBit = ffi.new'png_color_8*[1]'
+	if 0 ~= png.png_get_sBIT(png_ptr, info_ptr, sigBit) then
+		result.significant = {
+			red = sigBit[0].red,
+			green = sigBit[0].green,
+			blue = sigBit[0].blue,
+			gray = sigBit[0].gray,
+			alpha = sigBit[0].alpha,
+		}
+	end
+
+--DEBUG(@5):print'reading sPLT'
+	local spltEntries = ffi.new'png_sPLT_t*[1]'
+	local numSuggestedPalettes = png.png_get_sPLT(png_ptr, info_ptr, spltEntries)
+	if numSuggestedPalettes > 0 then
+		result.suggestedPalettes = range(0,numSuggestedPalettes-1):mapi(function(i)
+			local splt = spltEntries[0][i]
+			return {
+				name = splt.name ~= ffi.null and ffi.string(splt.name) or nil,
+				depth = splt.depth,
+				entries = range(0,splt.nentries-1):mapi(function(j)
+					local entry = splt.entries[j]
+					return {
+						red = entry.red,
+						green = entry.green,
+						blue = entry.blue,
+						alpha = entry.alpha,
+						frequency = entry.frequency,
+					}
+				end),
+			}
+		end)
+	end
+
+--DEBUG(@5):print'reading hIST'
+	local hist = ffi.new'png_uint_16p[1]'
+	if 0 ~= png.png_get_hIST(png_ptr, info_ptr, hist)
+	-- hist .. what is the size? the docs and no examples show.
+	and result.palette then	-- TODO if not then something is wrong ...histogram is only supposed ot appear when there is a palette....
+		-- TODO this and .palette, keep them cdata maybe?
+		result.histogram = range(0,#result.palette-1):mapi(function(i)
+			return hist[0][i]
+		end)
+	end
+
+	local modTime = ffi.new'png_time*[1]'
+	if 0 ~= png.png_get_tIME(png_ptr, info_ptr, modTime) then
+		result.modTime = {
+			year = modTime[0].year,
+			month = modTime[0].month,
+			day = modTime[0].day,
+			hour = modTime[0].hour,
+			minute = modTime[0].minute,
+			second = modTime[0].second,
+		}
+	end
+
+	-- TODO call this '.unknown' or just call this '.chunks' ?
+	local chunks = ffi.new'png_unknown_chunk*[1]'
+	local numChunks = png.png_get_unknown_chunks(png_ptr, info_ptr, chunks)
+--DEBUG(@5):print('loading', numChunks, 'unknown chunks')
+	if numChunks ~= 0 then
+		result.unknown = {}
+		for i=0,numChunks-1 do
+			local chunk = chunks[i]
+			local name = ffi.string(chunk.name)
+			result.unknown[name] = {
+				name = name,
+				data = ffi.string(chunk.data, chunk.size),
+				location = chunk.location,
+			}
+		end
+	end
+
+	-- http://www.libpng.org/pub/png/libpng-1.2.5-manual.html
+	-- "If you are not interested, you can pass NULL."
+	-- Why is this still crashing, and what am I missing?
+	--local end_pp = ffi.new'png_infop[1]'
+	--end_pp[0] = ffi.cast('void*', 0)
+	-- using png_read_png ... not needed
+	--[[ using png_read_info / png_read_image / png_read_end
+--DEBUG(@5):print('png_read_end', png_ptr, nil)
+	png.png_read_end(png_ptr, nil) -- ffi.cast('void*', 0)) -- end_pp[0]) -- 0)
+	--]]
+
+	png.png_destroy_read_struct(png_pp, info_pp, nil)	--end_pp)
+
+	return result
+end
+
 function PNGLoader:load(filename)
 --DEBUG(@5):print('PNGLoader:load', filename)
 	assert(filename, "expected filename")
@@ -89,392 +507,14 @@ function PNGLoader:load(filename)
 			error'file is not recognized as a PNG'
 		end
 
-		-- initialize stuff
---DEBUG(@5):print('png_create_read_struct', self.libpngVersion, nil, errorCallback, warningCallback)
-		local png_ptr = png.png_create_read_struct(self.libpngVersion, nil, errorCallback, warningCallback)
---DEBUG(@5):print('...got', png_ptr)
-		if png_ptr == ffi.null then
-			error'png_create_read_struct failed'
-		end
-
-		local png_pp = ffi.new'png_structp[1]'
-		png_pp[0] = png_ptr
-
---DEBUG(@5):print('png_create_info_struct', png_ptr)
-		local info_ptr =  png.png_create_info_struct(png_ptr)
---DEBUG(@5):print('...got', info_ptr)
-		if info_ptr == ffi.null then
-			error'png_create_info_struct failed'
-		end
-
-		local info_pp = ffi.new'png_infop[1]'
-		info_pp[0] = info_ptr
-
+		local result = pngLoadBody{
+			init = function(png_ptr)
 --DEBUG(@5):print('png_init_io', png_ptr, fp)
-		png.png_init_io(png_ptr, fp)
---DEBUG(@5):print('png_set_keep_unknown_chunks', png_ptr, png.PNG_HANDLE_CHUNK_ALWAYS, nil, 0)
-		png.png_set_keep_unknown_chunks(png_ptr, png.PNG_HANDLE_CHUNK_ALWAYS, nil, 0)
---DEBUG(@5):print('png_set_sig_bytes', png_ptr, 8)
-		png.png_set_sig_bytes(png_ptr, 8)
-
---DEBUG(@5):print('png_read_png', png_ptr, info_ptr, png.PNG_TRANSFORM_IDENTITY, nil)
-		png.png_read_png(png_ptr, info_ptr, png.PNG_TRANSFORM_IDENTITY, nil)
-
---DEBUG(@5):print('png_get_image_width', png_ptr, info_ptr)
-		local width = png.png_get_image_width(png_ptr, info_ptr)
---DEBUG(@5):print('png_get_image_height', png_ptr, info_ptr)
-		local height = png.png_get_image_height(png_ptr, info_ptr)
---DEBUG(@5):print('png_get_color_type', png_ptr, info_ptr)
-		local colorType = png.png_get_color_type(png_ptr, info_ptr)
---DEBUG(@5):print('png_get_bit_depth', png_ptr, info_ptr)
-		local bitDepth = png.png_get_bit_depth(png_ptr, info_ptr)
-		if colorType ~= png.PNG_COLOR_TYPE_GRAY
-		and colorType ~= png.PNG_COLOR_TYPE_RGB
-		and colorType ~= png.PNG_COLOR_TYPE_PALETTE
-		and colorType ~= png.PNG_COLOR_TYPE_GRAY_ALPHA
-		and colorType ~= png.PNG_COLOR_TYPE_RGB_ALPHA
-		then
-			error("got unknown colorType: "..tostring(colorType))
-		end
-
-		if not (bitDepth == 1
-			or bitDepth == 2
-			or bitDepth == 4
-			or bitDepth % 8 == 0
-		) then
-			error("got unknown bit depth: "..tostring(bitDepth))
-		end
-
-		--local number_of_passes = png.png_set_interlace_handling(png_ptr)
-		-- looks like png 1.5 needed this but png 1.6 doesn't
-		--png.png_read_update_info(png_ptr, info_ptr)
-
-		-- read file
-
-		-- TODO replace png_byte etc in the header, lighten the load on luajit ffi
-		assert(ffi.sizeof('png_byte') == 1)
---DEBUG(@5):print('png_get_rows', png_ptr, info_ptr)
-		local rowPointer = png.png_get_rows(png_ptr, info_ptr)
-		local channels = ({
-			[png.PNG_COLOR_TYPE_GRAY] = 1,
-			[png.PNG_COLOR_TYPE_PALETTE] = 1,
-			[png.PNG_COLOR_TYPE_GRAY_ALPHA] = 2,
-			[png.PNG_COLOR_TYPE_RGB] = 3,
-			[png.PNG_COLOR_TYPE_RGB_ALPHA] = 4,
-		})[colorType] or error('got unknown colorType')
-		local format
-		if bitDepth <= 8 then
-			format = 'uint8_t'
-		elseif bitDepth == 16 then
-			format = 'uint16_t'
-		else
-			error("got unknown bit depth: "..tostring(bitDepth))
-		end
-		local buffer = gcmem.new(format, width * height * channels)
-		-- read buffer from rows directly
-		if bitDepth < 8 then
-			assert.eq(channels, 1, "I don't support channels>1 for bitDepth<8")
-			local bitMask = assert.index({
-				[1] = 1,
-				[2] = 3,
-				[4] = 0xf,
-				[8] = 0xff,
-			}, bitDepth)
-			local dst = buffer
-			for y=0,height-1 do
-				local src = ffi.cast('png_byte*', rowPointer[y])
-				local bitOfs = 0
-				for x=0,width-1 do
-					dst[0] = bit.band(bitMask, bit.rshift(src[0], 8 - bitOfs - bitDepth))
-					dst = dst + 1
-					bitOfs = bitOfs + bitDepth
-					if bitOfs >= 8 then
-						bitOfs = bitOfs - 8
-						src = src + 1
-					end
-				end
-			end
-		else
-			local rowSize = channels*width*ffi.sizeof(format)
-			for y=0,height-1 do
-				ffi.copy(ffi.cast(format..'*', buffer) + y * rowSize, rowPointer[y], rowSize)
-			end
-		end
-
-		local palette
-		if colorType == png.PNG_COLOR_TYPE_PALETTE then
-			-- get the rgb entries
-			local pal_pp = ffi.new'png_color*[1]'
-			local numPal = ffi.new'int[1]'
---DEBUG(@5):print('png_get_PLTE', png_ptr, info_ptr, pal_pp, numPal)
-			if 0 == png.png_get_PLTE(png_ptr, info_ptr, pal_pp, numPal) then
-				error'png_get_PLTE failed'
-			end
-			-- see if there are alpha components as well
-			local transparencyAlpha = ffi.new('png_bytep[1]', nil)
-			local numTransparent = ffi.new('int[1]', 0)
-			local transparencyColor = ffi.new('png_color_16p[1]', nil)
-			-- ... why would transparencyColor return content when it has no value or purpose here, and the spec says it isn't even stored?
---DEBUG(@5):print('png_get_tRNS', png_ptr, info_ptr, transparencyAlpha, numTransparent, transparencyColor)
-			if 0 == png.png_get_tRNS(png_ptr, info_ptr, transparencyAlpha, numTransparent, transparencyColor) then
-				-- then there's no transparency info ...
---DEBUG:assert.eq(transparencyAlpha[0],nil)	-- ... so this should be initialized to nil, right?
-				transparencyAlpha[0] = nil	-- but I don't trust it
-			end
-			palette = {}
-			for i=0,numPal[0]-1 do
-				-- for now palettes are tables of entries of {r,g,b} from 0-255
-				local entry = {
-					pal_pp[0][i].red,
-					pal_pp[0][i].green,
-					pal_pp[0][i].blue,
-				}
-				palette[i+1] = entry
-				if transparencyAlpha[0] ~= ffi.null then
-					entry[4] = i < numTransparent[0]
-						and transparencyAlpha[0][i]
-						or 255
-				end
-			end
-		else
-			-- https://refspecs.linuxbase.org/LSB_3.1.0/LSB-Desktop-generic/LSB-Desktop-generic/libpng12.png.get.trns.1.html
-			-- "*numTransparent shall be set to the number of transparency values *trans_values shall be set to the single color value specified for non-paletted images."
-			-- hmm
-			local transparencyAlpha = ffi.new('png_bytep[1]', nil)
-			local numTransparent = ffi.new('int[1]', 0)
-			local transparencyColor = ffi.new('png_color_16p[1]', nil)	-- why would this return content when it has no value or purpose here, and the spec says it isn't even stored?
---DEBUG(@5):print('png_get_tRNS', png_ptr, info_ptr, transparencyAlpha, numTransparent, transparencyColor)
-			if 0 == png.png_get_tRNS(png_ptr, info_ptr, transparencyAlpha, numTransparent, transparencyColor) then
---DEBUG(@5):print('...failed, assigning to nil')
-				transparencyColor[0] = ffi.null
-			end
---DEBUG(@5):if transparencyColor[0] ~= ffi.null then
---DEBUG(@5):	print('transparencyColor', transparencyColor[0].index, transparencyColor[0].red, transparencyColor[0].green, transparencyColor[0].blue, transparencyColor[0].gray)
---DEBUG(@5):end
-			-- TODO HERE only for the single color set in transparencyColor
-		end
-
-		local result = {
-			buffer = buffer,
-			width = width,
-			height = height,
-			channels = channels,
-			format = format,
-			palette = palette,
+				png.png_init_io(png_ptr, fp)
+			end,
 		}
-		--[[
-		see if we can't load any other tags ...
-		TODO save them too? maybe not, idk.
-		what are all our chunks?
-		http://www.libpng.org/pub/png/spec/1.2/PNG-Chunks.html
-		IHDR - header - check
-		PLTE - palette - check
-		IDAT - image data - check
-		IEND - ending - check
-		tRNS - transparency - check i guess, for RGBA images i guess
-		gAMA ...
-		sRGB ...
-		iCCP ...
-		iTXt, tEXt, zTXt ...
-		bKGD
-		pHYs
-		sCAL
-		sBIT
-		sPLT
-		hIST
-		png_uint_32 png_get_pCAL(png_const_structrp png_ptr, png_inforp info_ptr, png_charp *purpose, png_int_32 *X0, png_int_32 *X1, int * png_uint_32, int *nparams, png_charp *units, png_charpp *params);
-		png_uint_32 png_get_oFFs(png_const_structrp png_ptr, png_const_inforp info_ptr, png_int_32 *offset_x, png_int_32 *offset_y, int *unit_type);
-		png_uint_32 png_get_eXIf(png_const_structrp png_ptr, png_inforp info_ptr, png_bytep *exif);
 
-		TODO TODO seems the png functions are groupe dbetween getters of chunk info directly, and lots of helper functions
-		how about spearating these ot make sure we get all info
-		btw htere's "get unknown chunks" but is there "get known chunks" ?
-		--]]
---DEBUG(@5):print'reading gAMA'
-		local gamma = ffi.new'double[1]'
-		if 0 ~= png.png_get_gAMA(png_ptr, info_ptr, gamma) then
-			result.gamma = gamma[0]
-		end
-
---DEBUG(@5):print'reading cHRM'
-		local chromatics = ffi.new'double[8]'
-		if 0 ~= png.png_get_cHRM(png_ptr, info_ptr, chromatics+0, chromatics+1, chromatics+2, chromatics+3, chromatics+4, chromatics+5, chromatics+6, chromatics+7) then
-			result.chromatics = {
-				whiteX = chromatics[0],
-				whiteY = chromatics[1],
-				redX = chromatics[2],
-				redY = chromatics[3],
-				greenX = chromatics[4],
-				greenY = chromatics[5],
-				blueX = chromatics[6],
-				blueY = chromatics[7],
-			}
-		end
-
---DEBUG(@5):print'reading sRGB'
-		local srgb = ffi.new'int[1]'
-		if 0 ~= png.png_get_sRGB(png_ptr, info_ptr, srgb) then
-			--[[
-			0: Perceptual
-			1: Relative colorimetric
-			2: Saturation
-			3: Absolute colorimetric
-			--]]
-			result.srgbIntent = srgb[0]
-		end
-
---DEBUG(@5):print'reading iCCP'
-		local name = ffi.new'char*[1]'
-		local compressionType = ffi.new'int[1]'
-		local profile = ffi.new'char*[1]'
-		local profileLen = ffi.new'uint32_t[1]'
-		if 0 ~= png.png_get_iCCP(png_ptr, info_ptr, name, compressionType, profile, profileLen) then
-			result.iccProfile = {
-				name = name[0] ~= ffi.null and ffi.string(name[0]) or nil,
-				-- "must always be set to PNG_COMPRESSION_TYPE_BASE"
-				compressionType = compressionType[0],
-				-- "International Color Consortium color profile"
-				profile = profile[0] ~= ffi.null and ffi.string(profile[0], profileLen[0]) or nil,
-			}
-		end
-
---DEBUG(@5):print'reading text'
-		local numText = png.png_get_text(png_ptr, info_ptr, nil, nil)
-		if numText > 0 then
-			local textPtr = ffi.new('png_text*[1]')
-			png.png_get_text(png_ptr, info_ptr, textPtr, nil)
-			result.text = range(0,numText-1):mapi(function(i)
-				local text = textPtr[0][i]
-				return {
-					compression = text.compression,
-					key = text.key ~= ffi.null and ffi.string(text.key) or nil,
-					text = text.text ~= ffi.null and ffi.string(text.text) or nil,--, text.text_length),
-					text_length = text.text_length,	-- why is this needed? is our string null-term?
-					itxt_length = text.itxt_length,	-- how about this? just to show compression size? or for reading compressed data?
-					lang = text.lang ~= ffi.null and ffi.string(text.lang) or nil,
-					lang_key = text.lang_key ~= ffi.null and ffi.string(text.lang_key) or nil,
-				}
-			end)
-		end
-
---DEBUG(@5):print'reading bKGD'
-		local background = ffi.new'png_color_16*[1]'
-		if 0 ~= png.png_get_bKGD(png_ptr, info_ptr, background) then
-			result.background = {
-				index = background[0].index,
-				red = background[0].red,
-				green = background[0].green,
-				blue = background[0].blue,
-				gray = background[0].gray,
-			}
-		end
-
---DEBUG(@5):print'reading pHYs'
-		local resX = ffi.new'png_uint_32[1]'
-		local resY = ffi.new'png_uint_32[1]'
-		local unitType = ffi.new'int[1]'
-		if 0 ~= png.png_get_pHYs(png_ptr, info_ptr, resX, resY, unitType) then
-			result.physical = {
-				resX = resX[0],
-				resY = resY[0],
-				unitType = unitType[0],
-			}
-		end
-
---DEBUG(@5):print'reading sCAL'
-		local unit = ffi.new'int[1]'
-		local width = ffi.new'double[1]'
-		local height = ffi.new'double[1]'
-		if 0 ~= png.png_get_sCAL(png_ptr, info_ptr, unit, width, height) then
-			result.scale = {
-				unit = unit[0],
-				width = width[0],
-				height = height[0],
-			}
-		end
-
---DEBUG(@5):print'reading sBIT'
-		local sigBit = ffi.new'png_color_8*[1]'
-		if 0 ~= png.png_get_sBIT(png_ptr, info_ptr, sigBit) then
-			result.significant = {
-				red = sigBit[0].red,
-				green = sigBit[0].green,
-				blue = sigBit[0].blue,
-				gray = sigBit[0].gray,
-				alpha = sigBit[0].alpha,
-			}
-		end
-
---DEBUG(@5):print'reading sPLT'
-		local spltEntries = ffi.new'png_sPLT_t*[1]'
-		local numSuggestedPalettes = png.png_get_sPLT(png_ptr, info_ptr, spltEntries)
-		if numSuggestedPalettes > 0 then
-			result.suggestedPalettes = range(0,numSuggestedPalettes-1):mapi(function(i)
-				local splt = spltEntries[0][i]
-				return {
-					name = splt.name ~= ffi.null and ffi.string(splt.name) or nil,
-					depth = splt.depth,
-					entries = range(0,splt.nentries-1):mapi(function(j)
-						local entry = splt.entries[j]
-						return {
-							red = entry.red,
-							green = entry.green,
-							blue = entry.blue,
-							alpha = entry.alpha,
-							frequency = entry.frequency,
-						}
-					end),
-				}
-			end)
-		end
-
---DEBUG(@5):print'reading hIST'
-		local hist = ffi.new'png_uint_16p[1]'
-		if 0 ~= png.png_get_hIST(png_ptr, info_ptr, hist)
-		-- hist .. what is the size? the docs and no examples show.
-		and result.palette then	-- TODO if not then something is wrong ...histogram is only supposed ot appear when there is a palette....
-			-- TODO this and .palette, keep them cdata maybe?
-			result.histogram = range(0,#result.palette-1):mapi(function(i)
-				return hist[0][i]
-			end)
-		end
-
-		local modTime = ffi.new'png_time*[1]'
-		if 0 ~= png.png_get_tIME(png_ptr, info_ptr, modTime) then
-			result.modTime = {
-				year = modTime[0].year,
-				month = modTime[0].month,
-				day = modTime[0].day,
-				hour = modTime[0].hour,
-				minute = modTime[0].minute,
-				second = modTime[0].second,
-			}
-		end
-
-		-- TODO call this '.unknown' or just call this '.chunks' ?
-		local chunks = ffi.new'png_unknown_chunk*[1]'
-		local numChunks = png.png_get_unknown_chunks(png_ptr, info_ptr, chunks)
---DEBUG(@5):print('loading', numChunks, 'unknown chunks')
-		if numChunks ~= 0 then
-			result.unknown = {}
-			for i=0,numChunks-1 do
-				local chunk = chunks[i]
-				local name = ffi.string(chunk.name)
-				result.unknown[name] = {
-					name = name,
-					data = ffi.string(chunk.data, chunk.size),
-					location = chunk.location,
-				}
-			end
-		end
-
-		-- http://www.libpng.org/pub/png/libpng-1.2.5-manual.html
-		-- "If you are not interested, you can pass NULL."
-		-- Why is this still crashing, and what am I missing?
-		--local end_pp = ffi.new'png_infop[1]'
-		--end_pp[0] = ffi.cast('void*', 0)
-		--png.png_read_end(png_ptr, nil) -- ffi.cast('void*', 0)) -- end_pp[0]) -- 0)
-		png.png_destroy_read_struct(png_pp, info_pp, nil)	--end_pp)
+		-- TODO this outside xpcall
 		stdio.fclose(fp)
 
 --DEBUG(@5):print('PNGLoader return', result)
@@ -483,6 +523,53 @@ function PNGLoader:load(filename)
 --DEBUG(@5):print('PNGLoader got err', err) print(debug.traceback())
 		return 'for filename '..filename..'\n'..err..'\n'..debug.traceback()
 	end)))
+end
+
+function PNGLoader:loadMem(data)
+--DEBUG(@5): print('PNGLoader:loadMem') --, data)
+	assert(data, 'expected filename')
+	local result
+
+	-- is there a point to assert(xpcall) really? unless you're going to cleanup anything ...
+	-- TODO proper cleanup
+	assert(xpcall(function()
+		local dataPtr = ffi.cast('uint8_t*', data)
+		local header = gcmem.new('char', headerSize)
+		ffi.copy(header, dataPtr, headerSize)
+		if png.png_sig_cmp(header, 0, headerSize) ~= 0 then
+			error'file is not recognized as a PNG'
+		end
+
+		local i = ffi.cast('size_t', headerSize)
+		local readCallback = ffi.cast('png_rw_ptr', function(
+			png_ptr,	-- png_structp
+			dst,		-- png_bytep
+			size		-- size_t
+		)
+--DEBUG(@5): print('readCallback copy from', i)
+			local dataPtr = ffi.cast('uint8_t*', png.png_get_io_ptr(png_ptr))
+--DEBUG: assert.ne(dataPtr, ffi.null)
+--DEBUG: assert.le(i+size, #data)
+			ffi.copy(dst, dataPtr+i, size)
+			i = i + size
+		end)
+
+		local result = pngLoadBody{
+			init = function(png_ptr)
+--DEBUG(@5): print('png_set_read_fn', pngPtr, dataPtr, readCallback)
+				png.png_set_read_fn(pngPtr, dataPtr, readCallback)
+			end,
+		}
+
+		readCallback:free()	-- or don't, and just cast it once and cache it
+
+	end, function(err)
+		return 'PNGLoader:loadMem:\n'..err..'\n'..debug.traceback()
+	end))
+
+	-- same as in Image:load(filename)
+	-- consider consolidating or not idk
+	return setmetatable(result, require 'image')
 end
 
 -- https://cplusplus.com/forum/general/125209/
