@@ -98,6 +98,9 @@ local function pngLoadBody(args)
 	png.png_set_sig_bytes(png_ptr, headerSize)
 
 --DEBUG(@5):print('png_set_keep_unknown_chunks', png_ptr, png.PNG_HANDLE_CHUNK_ALWAYS, nil, 0)
+	-- This seems to only work with the png_read_png pathway, but not with the png_read_info+png_read_image+png_read_end pathway
+	-- With the png_read_info+... pathway, custom chunks are thrown out regardless.
+	-- I'm suspicious they won't be if I add a custom chunk callback handler per-custom-chunk, but I want to just save all of them, and do it without callbacks.
 	png.png_set_keep_unknown_chunks(png_ptr, png.PNG_HANDLE_CHUNK_ALWAYS, nil, 0)
 
 	-- [[ using png_read_png
@@ -105,7 +108,7 @@ local function pngLoadBody(args)
 	-- "This call is equivalent to png_read_info(), followed the set of transformations indicated by the transform mask, then png_read_image(), and finally png_read_end()."
 	png.png_read_png(png_ptr, info_ptr, png.PNG_TRANSFORM_IDENTITY, nil)
 	--]]
-	--[[ using png_read_info / png_read_image / png_read_end:
+	--[[ using png_read_info+png_read_image+png_read_end:
 --DEBUG(@5):print('png_read_info', png_ptr, info_ptr)
 	png.png_read_info(png_ptr, info_ptr)
 	--]]
@@ -482,7 +485,7 @@ local function pngLoadBody(args)
 	--end_pp[0] = ffi.cast('void*', 0)
 
 	-- using png_read_png ... not needed
-	--[[ using png_read_info / png_read_image / png_read_end
+	--[[ using png_read_info+png_read_image+png_read_end
 --DEBUG(@5):print('png_read_end', png_ptr, nil)
 	png.png_read_end(png_ptr, nil) -- ffi.cast('void*', 0)) -- end_pp[0]) -- 0)
 	--]]
