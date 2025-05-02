@@ -168,6 +168,12 @@ local function pngLoadBody(args)
 	--[[ used with png_read_info / png_read_image / png_read_end
 --DEBUG(@5):print('allocating rowPointer...')
 	local rowPointer = ffi.new('png_bytep[?]', height)
+	local rowBytes = png.png_get_rowbytes(png_ptr, info_ptr)
+	local rowPtrData = range(0,height-1):mapi(function(i)
+		local ptr = gcmem.new('uint8_t', rowBytes)
+		rowPointer[i] = ptr
+		return ptr	-- save so it doesn't gc
+	end)
 --DEBUG(@5):print('png_read_image', png_ptr, rowPointer)
 	png.png_read_image(png_ptr, rowPointer)
 	--]]
@@ -474,6 +480,7 @@ local function pngLoadBody(args)
 	-- Why is this still crashing, and what am I missing?
 	--local end_pp = ffi.new'png_infop[1]'
 	--end_pp[0] = ffi.cast('void*', 0)
+
 	-- using png_read_png ... not needed
 	--[[ using png_read_info / png_read_image / png_read_end
 --DEBUG(@5):print('png_read_end', png_ptr, nil)
