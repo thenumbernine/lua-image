@@ -1,5 +1,5 @@
 local ffi = require 'ffi'
-local sdl = require 'ffi.req' 'sdl'
+local sdl = require 'sdl'
 local img = require 'ffi.req' 'sdl_image'
 local class = require 'ext.class'
 local path = require 'ext.path'
