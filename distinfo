@@ -1,0 +1,32 @@
+name = "image"
+files = {
+	["README.md"] = "image/README.md",
+	["image-dev-1.rockspec"] = "image/image-dev-1.rockspec",
+	["image.lua"] = "image/image.lua",
+	["luaimg/image.lua"] = "image/luaimg/image.lua",
+	["luajit/bmp.lua"] = "image/luajit/bmp.lua",
+	["luajit/fits.lua"] = "image/luajit/fits.lua",
+	["luajit/gif.lua"] = "image/luajit/gif.lua",
+	["luajit/image.lua"] = "image/luajit/image.lua",
+	["luajit/jpeg.lua"] = "image/luajit/jpeg.lua",
+	["luajit/loader.lua"] = "image/luajit/loader.lua",
+	["luajit/png.lua"] = "image/luajit/png.lua",
+	["luajit/tiff.lua"] = "image/luajit/tiff.lua",
+	["quantize_mediancut.lua"] = "image/quantize_mediancut.lua",
+	["sdl_image/image.lua"] = "image/sdl_image/image.lua",
+	["tests/info.lua"] = "image/tests/info.lua",
+	["tests/test-all.lua"] = "image/tests/test-all.lua",
+	["tests/test-tiff-compression.lua"] = "image/tests/test-tiff-compression.lua",
+	["tests/test.bmp"] = "image/tests/test.bmp",
+	["tests/test.gif"] = "image/tests/test.gif",
+	["tests/test.lua"] = "image/tests/test.lua",
+	["tests/test.png"] = "image/tests/test.png",
+	["tests/test_png_custom_chunks.lua"] = "image/tests/test_png_custom_chunks.lua",
+}
+deps = {
+	"ext",
+	"ffi",
+	"sdl",
+	"solver",
+	"vec-ffi",
+}
