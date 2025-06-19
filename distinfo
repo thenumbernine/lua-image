@@ -27,6 +27,6 @@ deps = {
 	"ext",
 	"ffi",
 	"sdl",
-	"solver",
+	"solver",	-- TODO remove this / make it optional / only when externally specified?
 	"vec-ffi",
 }
