@@ -76,9 +76,13 @@ function Image:init(width,height,channels,format,generator)
 	end
 end
 
+function Image:getBufferSize()
+	return self.width * self.height * self.channels * ffi.sizeof(self.format)
+end
+
 -- in-place operation
 function Image:clear()
-	ffi.fill(self.buffer, self.width * self.height * self.channels * ffi.sizeof(self.format), 0)
+	ffi.fill(self.buffer, self:getBufferSize(), 0)
 	return self
 end
 
@@ -271,7 +275,7 @@ end
 
 function Image:clone()
 	local result = Image(self.width, self.height, self.channels, self.format)
-	ffi.copy(result.buffer, self.buffer, self.width * self.height * self.channels * ffi.sizeof(self.format))
+	ffi.copy(result.buffer, self.buffer, self:getBufferSize())
 	return result
 end
 
