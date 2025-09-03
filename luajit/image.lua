@@ -408,7 +408,7 @@ function Image:copy(args)
 			end
 		end
 	end
-	result.palette = src.palette	-- preserve palette if present
+	result.palette = self.palette	-- preserve palette if present
 	return result
 end
 
