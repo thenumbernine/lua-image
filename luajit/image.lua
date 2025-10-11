@@ -791,11 +791,12 @@ end
 
 function Image:getHistogram()
 	local hist = {}
-	local p = ffi.cast('char*', self.buffer)
+	local p = ffi.cast('uint8_t*', self.buffer)
+	local pixlen = self.channels * ffi.sizeof(self.format)
 	for i=0,self.height*self.width-1 do
-		local key = ffi.string(p, self.channels)
+		local key = ffi.string(p, pixlen)
 		hist[key] = (hist[key] or 0) + 1
-		p = p + self.channels
+		p = p + pixlen
 	end
 	return hist
 end
