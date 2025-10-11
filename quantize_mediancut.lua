@@ -6,7 +6,7 @@ Then this can be just 'image.quantize_mediancut'
 --]]
 local ffi = require 'ffi'
 local table = require 'ext.table'
-local table = require 'ext.table'
+local string = require 'ext.string'
 local class = require 'ext.class'
 local range = require 'ext.range'
 local vector = require 'ffi.cpp.vector-lua'
@@ -24,10 +24,6 @@ local function bindistsq(a, b)
 	return sum
 end
 
-local function bintohex(s)
-	return (s:gsub('.', function(c) return ('%02x'):format(c:byte()) end))
-end
-
 --[[
 hist = (optional) histogram, with keys in lua-string binary-blob format
 TODO make fromto the first arg (and this a member of its class?)
@@ -43,9 +39,13 @@ local function applyColorMap(image, fromto, hist)
 				--or string.char(p[0], p[1], p[2], p[3])
 			local dstkey = fromto[key]
 			if not dstkey then
-				print("no fromto for color "..bintohex(key))
-				print('options (quantize mapping keys) are: '..require'ext.tolua'(table.keys(fromto):mapi(function(c) return bintohex(c) end)))
-				print('quantize mapping values are: '..require'ext.tolua'(table.values(fromto):mapi(function(c) return bintohex(c) end)))
+				print("no fromto for color "..string.hex(key))
+				print('options (quantize mapping keys) are: '..require'ext.tolua'(table.keys(fromto):mapi(function(c)
+					return string.hex(c)
+				end)))
+				print('quantize mapping values are: '..require'ext.tolua'(table.values(fromto):mapi(function(c)
+					return string.hex(c)
+				end)))
 				error'here'
 			end
 			p[0], p[1], p[2] = dstkey:byte(1,3)
@@ -319,7 +319,6 @@ end
 
 return {
 	bindistsq = bindistsq,
-	bintohex = bintohex,
 	applyColorMap = applyColorMap,
 	buildColorMapMedianCut = buildColorMapMedianCut,
 	buildHistogram = buildHistogram,
