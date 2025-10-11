@@ -5,7 +5,57 @@ local range = require 'ext.range'
 local assert = require 'ext.assert'
 local stdio = require 'ffi.req' 'c.stdio'	-- use stdio instead of ffi.C for browser compat
 local png = require 'ffi.req' 'png'
-local gcmem = require 'ext.gcmem'
+
+
+local voidp = ffi.typeof'void*'
+local charp1 = ffi.typeof'char*[1]'
+local int = ffi.typeof'int'
+local int1 = ffi.typeof'int[1]'
+local uint8_t = ffi.typeof'uint8_t'
+local uint8_t_p = ffi.typeof'uint8_t*'
+local uint8_t_arr = ffi.typeof'uint8_t[?]'
+local uint8_t_p_arr = ffi.typeof'uint8_t*[?]'
+local uint8_t_arr8 = ffi.typeof'uint8_t[8]'
+local uint16_t = ffi.typeof'uint16_t'
+local uint32_t_1 = ffi.typeof'uint32_t[1]'
+local size_t = ffi.typeof'size_t'
+local float = ffi.typeof'float'
+local double = ffi.typeof'double'
+local double1 = ffi.typeof'double[1]'
+local double8 = ffi.typeof'double[8]'
+
+local png_structp = ffi.typeof'png_structp'
+local png_structp_1 = ffi.typeof'png_structp[1]'
+
+local png_infop = ffi.typeof'png_infop'
+local png_infop_1 = ffi.typeof'png_infop[1]'
+
+local png_byte = ffi.typeof'png_byte'
+local png_byte_arr = ffi.typeof'png_byte[?]'
+local png_bytep = ffi.typeof'png_bytep'
+local png_bytep_1 = ffi.typeof'png_bytep[1]'
+local png_bytep_arr = ffi.typeof'png_bytep[?]'
+
+local png_uint_16_p_1 = ffi.typeof'png_uint_16p[1]'
+local png_uint_32_1 = ffi.typeof'png_uint_32[1]'
+
+local png_color_arr = ffi.typeof'png_color[?]'
+local png_colorp_1 = ffi.typeof'png_color*[1]'
+local png_color_8p_1 = ffi.typeof'png_color_8*[1]'
+local png_color_16_1 = ffi.typeof'png_color_16[1]'
+local png_color_16p_1 = ffi.typeof'png_color_16p[1]'
+
+local png_textp_1 = ffi.typeof'png_text*[1]'
+
+local png_sPLT_t_p_1 = ffi.typeof'png_sPLT_t*[1]'
+local png_time_p_1 = ffi.typeof'png_time*[1]'
+
+local png_unknown_chunk_arr = ffi.typeof'png_unknown_chunk[?]'
+local png_unknown_chunk_p_1 = ffi.typeof'png_unknown_chunk*[1]'
+
+local png_error_ptr = ffi.typeof'png_error_ptr'
+local png_rw_ptr = ffi.typeof'png_rw_ptr'
+
 
 local PNGLoader = Loader:subclass()
 
@@ -32,7 +82,10 @@ function PNGLoader:prepareImage(image)
 	) then
 		image = image:rgb()
 	end
-	if image.format == 'float' or image.format == 'double' then
+
+	assert.eq(ffi.typeof(image.format), image.format, "format is not a ctype")
+
+	if image.format == float or image.format == double then
 		image = image:clamp(0,1)
 	end
 
@@ -59,11 +112,11 @@ function PNGLoader:prepareImage(image)
 	return image
 end
 
-local errorCallback = ffi.cast('png_error_ptr', function(struct, msg)
+local errorCallback = ffi.cast(png_error_ptr, function(struct, msg)
 	print('png error:', ffi.string(msg))
 end)
 
-local warningCallback = ffi.cast('png_error_ptr', function(struct, msg)
+local warningCallback = ffi.cast(png_error_ptr, function(struct, msg)
 	print('png warning:', ffi.string(msg))
 end)
 
@@ -79,7 +132,7 @@ local function pngLoadBody(args)
 		error'png_create_read_struct failed'
 	end
 
-	local png_pp = ffi.new'png_structp[1]'
+	local png_pp = png_structp_1()
 	png_pp[0] = png_ptr
 
 --DEBUG(@5):print('png_create_info_struct', png_ptr)
@@ -89,7 +142,7 @@ local function pngLoadBody(args)
 		error'png_create_info_struct failed'
 	end
 
-	local info_pp = ffi.new'png_infop[1]'
+	local info_pp = png_infop_1()
 	info_pp[0] = info_ptr
 
 	args.init(png_ptr)	-- init the png
@@ -144,9 +197,6 @@ local function pngLoadBody(args)
 
 	-- read file
 
-	-- TODO replace png_byte etc in the header, lighten the load on luajit ffi
-	assert(ffi.sizeof('png_byte') == 1)
-
 	local channels = ({
 		[png.PNG_COLOR_TYPE_GRAY] = 1,
 		[png.PNG_COLOR_TYPE_PALETTE] = 1,
@@ -156,13 +206,15 @@ local function pngLoadBody(args)
 	})[colorType] or error('got unknown colorType')
 	local format
 	if bitDepth <= 8 then
-		format = 'uint8_t'
+		format = uint8_t
 	elseif bitDepth == 16 then
-		format = 'uint16_t'
+		format = uint16_t
 	else
 		error("got unknown bit depth: "..tostring(bitDepth))
 	end
-	local buffer = gcmem.new(format, width * height * channels)
+	local formatp = ffi.typeof('$*', format)
+	local format_arr = ffi.typeof('$[?]', format)
+	local buffer = format_arr(width * height * channels)
 
 	-- [[ using png_read_png
 --DEBUG(@5):print('png_get_rows', png_ptr, info_ptr)
@@ -170,10 +222,10 @@ local function pngLoadBody(args)
 	--]]
 	--[[ used with png_read_info / png_read_image / png_read_end
 --DEBUG(@5):print('allocating rowPointer...')
-	local rowPointer = ffi.new('png_bytep[?]', height)
+	local rowPointer = png_bytep_arr(height)
 	local rowBytes = png.png_get_rowbytes(png_ptr, info_ptr)
 	local rowPtrData = range(0,height-1):mapi(function(i)
-		local ptr = gcmem.new('uint8_t', rowBytes)
+		local ptr = uint8_t_arr(rowBytes)
 		rowPointer[i] = ptr
 		return ptr	-- save so it doesn't gc
 	end)
@@ -192,7 +244,7 @@ local function pngLoadBody(args)
 		}, bitDepth)
 		local dst = buffer
 		for y=0,height-1 do
-			local src = ffi.cast('png_byte*', rowPointer[y])
+			local src = ffi.cast(png_bytep, rowPointer[y])
 			local bitOfs = 0
 			for x=0,width-1 do
 				dst[0] = bit.band(bitMask, bit.rshift(src[0], 8 - bitOfs - bitDepth))
@@ -205,25 +257,25 @@ local function pngLoadBody(args)
 			end
 		end
 	else
-		local rowSize = channels*width*ffi.sizeof(format)
+		local rowSize = channels * width * ffi.sizeof(format)
 		for y=0,height-1 do
-			ffi.copy(ffi.cast(format..'*', buffer) + y * rowSize, rowPointer[y], rowSize)
+			ffi.copy(ffi.cast(formatp, buffer) + y * rowSize, rowPointer[y], rowSize)
 		end
 	end
 
 	local palette
 	if colorType == png.PNG_COLOR_TYPE_PALETTE then
 		-- get the rgb entries
-		local pal_pp = ffi.new'png_color*[1]'
-		local numPal = ffi.new'int[1]'
+		local pal_pp = png_colorp_1()
+		local numPal = int1()
 --DEBUG(@5):print('png_get_PLTE', png_ptr, info_ptr, pal_pp, numPal)
 		if 0 == png.png_get_PLTE(png_ptr, info_ptr, pal_pp, numPal) then
 			error'png_get_PLTE failed'
 		end
 		-- see if there are alpha components as well
-		local transparencyAlpha = ffi.new('png_bytep[1]', nil)
-		local numTransparent = ffi.new('int[1]', 0)
-		local transparencyColor = ffi.new('png_color_16p[1]', nil)
+		local transparencyAlpha = png_bytep_1(nil)
+		local numTransparent = int1(0)
+		local transparencyColor = png_color_16p_1(nil)
 		-- ... why would transparencyColor return content when it has no value or purpose here, and the spec says it isn't even stored?
 --DEBUG(@5):print('png_get_tRNS', png_ptr, info_ptr, transparencyAlpha, numTransparent, transparencyColor)
 		if 0 == png.png_get_tRNS(png_ptr, info_ptr, transparencyAlpha, numTransparent, transparencyColor) then
@@ -250,9 +302,9 @@ local function pngLoadBody(args)
 		-- https://refspecs.linuxbase.org/LSB_3.1.0/LSB-Desktop-generic/LSB-Desktop-generic/libpng12.png.get.trns.1.html
 		-- "*numTransparent shall be set to the number of transparency values *trans_values shall be set to the single color value specified for non-paletted images."
 		-- hmm
-		local transparencyAlpha = ffi.new('png_bytep[1]', nil)
-		local numTransparent = ffi.new('int[1]', 0)
-		local transparencyColor = ffi.new('png_color_16p[1]', nil)	-- why would this return content when it has no value or purpose here, and the spec says it isn't even stored?
+		local transparencyAlpha = png_bytep_1(nil)
+		local numTransparent = int1(0)
+		local transparencyColor = png_color_16p_1(nil)	-- why would this return content when it has no value or purpose here, and the spec says it isn't even stored?
 --DEBUG(@5):print('png_get_tRNS', png_ptr, info_ptr, transparencyAlpha, numTransparent, transparencyColor)
 		if 0 == png.png_get_tRNS(png_ptr, info_ptr, transparencyAlpha, numTransparent, transparencyColor) then
 --DEBUG(@5):print('...failed, assigning to nil')
@@ -301,13 +353,13 @@ local function pngLoadBody(args)
 	btw htere's "get unknown chunks" but is there "get known chunks" ?
 	--]]
 --DEBUG(@5):print'reading gAMA'
-	local gamma = ffi.new'double[1]'
+	local gamma = double1()		-- TODO can I just pass a double into a double* and luajit will figure out to & it?
 	if 0 ~= png.png_get_gAMA(png_ptr, info_ptr, gamma) then
 		result.gamma = gamma[0]
 	end
 
 --DEBUG(@5):print'reading cHRM'
-	local chromatics = ffi.new'double[8]'
+	local chromatics = double8()
 	if 0 ~= png.png_get_cHRM(png_ptr, info_ptr, chromatics+0, chromatics+1, chromatics+2, chromatics+3, chromatics+4, chromatics+5, chromatics+6, chromatics+7) then
 		result.chromatics = {
 			whiteX = chromatics[0],
@@ -322,7 +374,7 @@ local function pngLoadBody(args)
 	end
 
 --DEBUG(@5):print'reading sRGB'
-	local srgb = ffi.new'int[1]'
+	local srgb = int1()
 	if 0 ~= png.png_get_sRGB(png_ptr, info_ptr, srgb) then
 		--[[
 		0: Perceptual
@@ -334,10 +386,10 @@ local function pngLoadBody(args)
 	end
 
 --DEBUG(@5):print'reading iCCP'
-	local name = ffi.new'char*[1]'
-	local compressionType = ffi.new'int[1]'
-	local profile = ffi.new'char*[1]'
-	local profileLen = ffi.new'uint32_t[1]'
+	local name = charp1()
+	local compressionType = int1()
+	local profile = charp1()
+	local profileLen = uint32_t_1()
 	if 0 ~= png.png_get_iCCP(png_ptr, info_ptr, name, compressionType, profile, profileLen) then
 		result.iccProfile = {
 			name = name[0] ~= ffi.null and ffi.string(name[0]) or nil,
@@ -351,7 +403,7 @@ local function pngLoadBody(args)
 --DEBUG(@5):print'reading text'
 	local numText = png.png_get_text(png_ptr, info_ptr, nil, nil)
 	if numText > 0 then
-		local textPtr = ffi.new('png_text*[1]')
+		local textPtr = png_textp_1()
 		png.png_get_text(png_ptr, info_ptr, textPtr, nil)
 		result.text = range(0,numText-1):mapi(function(i)
 			local text = textPtr[0][i]
@@ -368,7 +420,7 @@ local function pngLoadBody(args)
 	end
 
 --DEBUG(@5):print'reading bKGD'
-	local background = ffi.new'png_color_16*[1]'
+	local background = png_color_16p_1()
 	if 0 ~= png.png_get_bKGD(png_ptr, info_ptr, background) then
 		result.background = {
 			index = background[0].index,
@@ -380,9 +432,9 @@ local function pngLoadBody(args)
 	end
 
 --DEBUG(@5):print'reading pHYs'
-	local resX = ffi.new'png_uint_32[1]'
-	local resY = ffi.new'png_uint_32[1]'
-	local unitType = ffi.new'int[1]'
+	local resX = png_uint_32_1()
+	local resY = png_uint_32_1()
+	local unitType = int1()
 	if 0 ~= png.png_get_pHYs(png_ptr, info_ptr, resX, resY, unitType) then
 		result.physical = {
 			resX = resX[0],
@@ -392,9 +444,9 @@ local function pngLoadBody(args)
 	end
 
 --DEBUG(@5):print'reading sCAL'
-	local unit = ffi.new'int[1]'
-	local width = ffi.new'double[1]'
-	local height = ffi.new'double[1]'
+	local unit = int1()
+	local width = double1()
+	local height = double1()
 	if 0 ~= png.png_get_sCAL(png_ptr, info_ptr, unit, width, height) then
 		result.scale = {
 			unit = unit[0],
@@ -404,7 +456,7 @@ local function pngLoadBody(args)
 	end
 
 --DEBUG(@5):print'reading sBIT'
-	local sigBit = ffi.new'png_color_8*[1]'
+	local sigBit = png_color_8p_1()
 	if 0 ~= png.png_get_sBIT(png_ptr, info_ptr, sigBit) then
 		result.significant = {
 			red = sigBit[0].red,
@@ -416,7 +468,7 @@ local function pngLoadBody(args)
 	end
 
 --DEBUG(@5):print'reading sPLT'
-	local spltEntries = ffi.new'png_sPLT_t*[1]'
+	local spltEntries = png_sPLT_t_p_1 ()
 	local numSuggestedPalettes = png.png_get_sPLT(png_ptr, info_ptr, spltEntries)
 	if numSuggestedPalettes > 0 then
 		result.suggestedPalettes = range(0,numSuggestedPalettes-1):mapi(function(i)
@@ -439,7 +491,7 @@ local function pngLoadBody(args)
 	end
 
 --DEBUG(@5):print'reading hIST'
-	local hist = ffi.new'png_uint_16p[1]'
+	local hist = png_uint_16_p_1()
 	if 0 ~= png.png_get_hIST(png_ptr, info_ptr, hist)
 	-- hist .. what is the size? the docs and no examples show.
 	and result.palette then	-- TODO if not then something is wrong ...histogram is only supposed ot appear when there is a palette....
@@ -449,7 +501,7 @@ local function pngLoadBody(args)
 		end)
 	end
 
-	local modTime = ffi.new'png_time*[1]'
+	local modTime = png_time_p_1 ()
 	if 0 ~= png.png_get_tIME(png_ptr, info_ptr, modTime) then
 		result.modTime = {
 			year = modTime[0].year,
@@ -462,7 +514,7 @@ local function pngLoadBody(args)
 	end
 
 	-- TODO call this '.unknown' or just call this '.chunks' ?
-	local chunks = ffi.new'png_unknown_chunk*[1]'
+	local chunks = png_unknown_chunk_p_1()
 	local numChunks = png.png_get_unknown_chunks(png_ptr, info_ptr, chunks)
 --DEBUG(@5):print('loading', numChunks, 'unknown chunks')
 	if numChunks ~= 0 then
@@ -481,13 +533,13 @@ local function pngLoadBody(args)
 	-- http://www.libpng.org/pub/png/libpng-1.2.5-manual.html
 	-- "If you are not interested, you can pass NULL."
 	-- Why is this still crashing, and what am I missing?
-	--local end_pp = ffi.new'png_infop[1]'
-	--end_pp[0] = ffi.cast('void*', 0)
+	--local end_pp = png_infop_1()
+	--end_pp[0] = ffi.cast(voidp, 0)
 
 	-- using png_read_png ... not needed
 	--[[ using png_read_info+png_read_image+png_read_end
 --DEBUG(@5):print('png_read_end', png_ptr, nil)
-	png.png_read_end(png_ptr, nil) -- ffi.cast('void*', 0)) -- end_pp[0]) -- 0)
+	png.png_read_end(png_ptr, nil) -- ffi.cast(voidp, 0)) -- end_pp[0]) -- 0)
 	--]]
 
 	png.png_destroy_read_struct(png_pp, info_pp, nil)	--end_pp)
@@ -500,7 +552,7 @@ function PNGLoader:load(filename)
 	assert(filename, "expected filename")
 	return select(2, assert(xpcall(function()
 
-		local header = gcmem.new('char',8)	-- 8 is the maximum size that can be checked
+		local header = uint8_t_arr8()	-- 8 is the maximum size that can be checked
 --DEBUG(@5):print('...header', header)
 
 		-- open file and test for it being a png
@@ -543,21 +595,21 @@ function PNGLoader:loadMem(data)
 	-- is there a point to assert(xpcall) really? unless you're going to cleanup anything ...
 	-- TODO proper cleanup
 	assert(xpcall(function()
-		local dataPtr = ffi.cast('uint8_t*', data)
-		local header = gcmem.new('char', headerSize)
+		local dataPtr = ffi.cast(uint8_t_p, data)
+		local header = uint8_t_arr(headerSize)
 		ffi.copy(header, dataPtr, headerSize)
 		if png.png_sig_cmp(header, 0, headerSize) ~= 0 then
 			error'file is not recognized as a PNG'
 		end
 
-		local i = ffi.cast('size_t', headerSize)
-		local readCallback = ffi.cast('png_rw_ptr', function(
+		local i = ffi.cast(size_t, headerSize)
+		local readCallback = ffi.cast(png_rw_ptr, function(
 			png_ptr,	-- png_structp
 			dst,		-- png_bytep
 			size		-- size_t
 		)
 --DEBUG(@5): print('readCallback copy from', i)
-			local dataPtr = ffi.cast('uint8_t*', png.png_get_io_ptr(png_ptr))
+			local dataPtr = ffi.cast(uint8_t_p, png.png_get_io_ptr(png_ptr))
 --DEBUG: assert.ne(dataPtr, ffi.null)
 --DEBUG: assert.le(i+size, #data)
 			ffi.copy(dst, dataPtr+i, size)
@@ -585,17 +637,19 @@ end
 -- https://cplusplus.com/forum/general/125209/
 function PNGLoader:save(args)
 	-- args:
-	local filename = assert(args.filename, "expected filename")
-	local width = assert(args.width, "expected width")
-	local height = assert(args.height, "expected height")
-	local channels = assert(args.channels, "expected channels")
-	local format = assert(args.format, "expected format")
-	local buffer = assert(args.buffer, "expected buffer")
+	local filename = assert.index(args, 'filename')
+	local width = assert.index(args, 'width')
+	local height = assert.index(args, 'height')
+	local channels = assert.index(args, 'channels')
+	local format = assert.index(args, 'format')
+	local buffer = assert.index(args, 'buffer')
 	local palette = args.palette	 -- optional, table of N tables of 3 values for RGB constrained to 0-255 for now
 
+	assert.eq(ffi.typeof(format), format, "format is not a ctype")
+
 	local fp
-	local png_pp = ffi.new'png_structp[1]'
-	local info_pp = ffi.new'png_infop[1]'
+	local png_pp = png_structp_1()
+	local info_pp = png_infop_1()
 	local res, err = xpcall(function()
 		fp = stdio.fopen(filename, 'wb')
 		if fp == ffi.null then
@@ -641,7 +695,7 @@ function PNGLoader:save(args)
 		if palette then
 			local numPal = #palette
 			assert.le(numPal, png.PNG_MAX_PALETTE_LENGTH, 'palette size exceeded')
-			local pngpal = gcmem.new('png_color', numPal)
+			local pngpal = png_color_arr(numPal)
 			local hasPalAlpha
 			for i,c in ipairs(palette) do
 				pngpal[i-1].red = c[1]
@@ -655,12 +709,12 @@ function PNGLoader:save(args)
 
 			if hasPalAlpha then
 				local numTransparent = numPal
-				local transparencyAlpha = ffi.new('png_byte[?]', numPal)
+				local transparencyAlpha = png_byte_arr(numPal)
 				for i,c in ipairs(palette) do
 					transparencyAlpha[i-1] = c[4] or 255
 				end
 				-- can this be nil?
-				--local transparencyColor = ffi.new('png_color_16[1]', nil)
+				--local transparencyColor = png_color_16_1(nil)
 				local transparencyColor
 				png.png_set_tRNS(png_ptr, info_ptr, transparencyAlpha, numTransparent, transparencyColor);
 			end
@@ -668,7 +722,7 @@ function PNGLoader:save(args)
 
 		png.png_write_info(png_ptr, info_ptr)
 
-		local rowptrs = gcmem.new('uint8_t *', height)
+		local rowptrs = uint8_t_p_arr(height)
 		for y=0,height-1 do
 			-- [[ do I need to allocate these myself?
 			rowptrs[y] = buffer + channels*width*y
@@ -685,13 +739,13 @@ function PNGLoader:save(args)
 		if args.unknown then
 			local names = table.keys(args.unknown)
 			local numChunks = #names
-			local chunks = ffi.new('png_unknown_chunk[?]', numChunks)
+			local chunks = png_unknown_chunk_arr(numChunks)
 			for i,name in ipairs(names) do	-- does order matter?
 				local src = args.unknown[name]
 				local chunk = chunks[i-1]
 				ffi.fill(chunk.name, 5)
 				ffi.copy(chunk.name, name, math.min(#name, 5))
-				chunk.data = ffi.cast('png_byte*', src.data)
+				chunk.data = ffi.cast(png_bytep, src.data)
 				chunk.size = #src.data
 				chunk.location = png.PNG_AFTER_IDAT
 			end

@@ -5,10 +5,30 @@ so this needs to be changed to work with RGBA too
 --]]
 local ffi = require 'ffi'
 local class = require 'ext.class'
-local gcmem = require 'ext.gcmem'
 local path = require 'ext.path'	-- getext
 local table = require 'ext.table'
 local assert = require 'ext.assert'
+
+
+local char = ffi.typeof'char'
+local int8_t = ffi.typeof'int8_t'
+local signed_char = ffi.typeof'signed char'
+local unsigned_char = ffi.typeof'unsigned char'
+local uint8_t = ffi.typeof'uint8_t'
+local short = ffi.typeof'short'
+local signed_short = ffi.typeof'signed short'
+local unsigned_short = ffi.typeof'unsigned short'
+local int16_t = ffi.typeof'int16_t'
+local uint16_t = ffi.typeof'uint16_t'
+local int = ffi.typeof'int'
+local signed_int = ffi.typeof'signed int'
+local unsigned_int = ffi.typeof'unsigned int'
+local int32_t = ffi.typeof'int32_t'
+local uint32_t = ffi.typeof'uint32_t'
+
+local uint8_t_p = ffi.typeof'uint8_t*'
+
+local double = ffi.typeof'double'
 
 
 local Image = class()
@@ -43,7 +63,7 @@ end
 -- TODO .format -> .type or .ctype?
 function Image:init(width,height,channels,format,generator)
 	channels = channels or 4
-	format = format or 'double'
+	format = ffi.typeof(format or double)
 	if type(width) == 'string' then
 		local filename = width
 		local loader = getLoaderForFilename(filename)
@@ -52,7 +72,8 @@ function Image:init(width,height,channels,format,generator)
 			self[k] = v
 		end
 	else
-		self.buffer = gcmem.new(format, width * height * channels)
+		local format_arr = ffi.typeof('$[?]', format)
+		self.buffer = format_arr(width * height * channels)
 		self.width = width
 		self.height = height
 		self.channels = channels
@@ -86,34 +107,34 @@ function Image:clear()
 	return self
 end
 
-local formatInfo = {
+local formatInfos = {
 	-- will these always equate, or does that depend on where luajit was compiled?
 	-- to handle that I would like to key them all as ffi.typeof(typename)
 	-- but while ffi.typeof'char'==ffi.typeof'int8_t' is true ...
 	-- ... rawequal(ffi.typeof'char', ffi.typeof'int8_t') is false ...
 	-- therefore I can't use them for keys in tables ...
 	-- so maybe later I'll rewrite all searches to be linear, and still use ffi.typeof() here to ensure type equivalence even if they typename differs
-	['char'] = {bias=128, scale=255},
-	['int8_t'] = {bias=128, scale=255},
-	['signed char'] = {bias=128, scale=255},
-	['unsigned char'] = {scale=255},
-	['uint8_t'] = {scale=255},
-	['short'] = {bias=32768, scale=65535},
-	['signed short'] = {bias=32768, scale=65535},
-	['unsigned short'] = {scale=65535},
-	['int16_t'] = {bias=32768, scale=65535},
-	['uint16_t'] = {scale=65535},
-	['int'] = {bias=2^31, scale=2^32-1},
-	['signed int'] = {bias=2^31, scale=2^32-1},
-	['unsigned int'] = {scale=2^32-1},
-	['int32_t'] = {bias=2^31, scale=2^32-1},
-	['uint32_t'] = {scale=2^32-1},
+	[tostring(char)] = {bias=128, scale=255},
+	[tostring(int8_t)] = {bias=128, scale=255},
+	[tostring(signed_char)] = {bias=128, scale=255},
+	[tostring(unsigned_char)] = {scale=255},
+	[tostring(uint8_t)] = {scale=255},
+	[tostring(short)] = {bias=32768, scale=65535},
+	[tostring(signed_short)] = {bias=32768, scale=65535},
+	[tostring(unsigned_short)] = {scale=65535},
+	[tostring(int16_t)] = {bias=32768, scale=65535},
+	[tostring(uint16_t)] = {scale=65535},
+	[tostring(int)] = {bias=2^31, scale=2^32-1},
+	[tostring(signed_int)] = {bias=2^31, scale=2^32-1},
+	[tostring(unsigned_int)] = {scale=2^32-1},
+	[tostring(int32_t)] = {bias=2^31, scale=2^32-1},
+	[tostring(uint32_t)] = {scale=2^32-1},
 }
 
 function Image:setChannels(newChannels)
 	local dst = Image(self.width, self.height, newChannels, self.format)
 	local minCh = math.min(self.channels, newChannels)
-	local formatInfo = formatInfo[self.format]
+	local formatInfo = formatInfos[tostring(self.format)]
 	local fillvalue = formatInfo and (formatInfo.scale - (formatInfo.bias or 0)) or 1
 	for j=0,self.height-1 do
 		for i=0,self.width-1 do
@@ -130,9 +151,10 @@ function Image:setChannels(newChannels)
 end
 
 function Image:setFormat(newFormat)
+	assert.eq(newFormat, ffi.typeof(newFormat), 'format must be a ctype')
 	local dst = Image(self.width, self.height, self.channels, newFormat)
-	local fromFormatInfo = formatInfo[self.format]
-	local toFormatInfo = formatInfo[newFormat]
+	local fromFormatInfo = formatInfos[tostring(self.format)]
+	local toFormatInfo = formatInfos[tostring(newFormat)]
 	for index=0,self.width*self.height*self.channels-1 do
 		local value = tonumber(self.buffer[index])
 		if fromFormatInfo then
@@ -242,7 +264,7 @@ function Image:__call(x, y, ...)
 	local index = self.channels * (x + self.width * y)
 	local oldPixel = {}
 	local newPixel = {...}
-	local info = formatInfo[self.format]
+	local info = formatInfos[tostring(self.format)]
 	for j=0,self.channels-1 do
 		local v = tonumber(self.buffer[index])
 		if info then
@@ -464,9 +486,9 @@ function Image:tile(w, h, x, y)
 end
 
 Image.gradientKernels = {
-	simple = Image(2,1,1,'double',{-1,1}),
-	Sobel = Image(3,3,1,'double',{-1,0,1,-2,0,2,-1,0,1})/4,
-	Scharr = Image(3,3,1,'double',{-3,0,3,-10,0,10,-3,0,3})/16,
+	simple = Image(2,1,1,double,{-1,1}),
+	Sobel = Image(3,3,1,double,{-1,0,1,-2,0,2,-1,0,1})/4,
+	Scharr = Image(3,3,1,double,{-3,0,3,-10,0,10,-3,0,3})/16,
 	-- TODO Gaussian gradient
 	-- TODO make boundary modulo optional
 }
@@ -637,7 +659,7 @@ function Image.gaussianKernel(sigma, width, height)
 	if not height then height = width end
 	local sigmaSq = sigma^2
 	local normalization = 1 / math.sqrt(2 * math.pi * sigmaSq)
-	return Image(width, height, 1, 'double', function(x,y)
+	return Image(width, height, 1, double, function(x,y)
 		local dx = (x+.5) - (width/2)
 		local dy = (y+.5) - (height/2)
 		return normalization * math.exp((-dx*dx-dy*dy)/sigmaSq)
@@ -724,13 +746,13 @@ function Image:solveGMRes(args)
 	}
 end
 
-Image.simpleBlurKernel = Image(3,3,1,'double',{0,1,0, 1,4,1, 0,1,0})/8
+Image.simpleBlurKernel = Image(3,3,1,double,{0,1,0, 1,4,1, 0,1,0})/8
 function Image:simpleBlur()
 	return self:kernel(self.simpleBlurKernel, false, -1, -1)
 end
 
 -- TODO offer multiple options
-Image.divergenceKernel = Image(3,3,1,'double',{0,1,0,1,-4,1,0,1,0})
+Image.divergenceKernel = Image(3,3,1,double,{0,1,0,1,-4,1,0,1,0})
 function Image:divergence()
 	return self:kernel(self.divergenceKernel, false, -1, -1)
 end
@@ -738,7 +760,7 @@ end
 -- should this invert all channels, or just up to the first three?
 -- first three ...
 function Image:invert()
-	local info = formatInfo[self.format]
+	local info = formatInfos[tostring(self.format)]
 	local scale = info and info.scale or 1
 	local bias = info and info.bias or 0
 	return Image(self.width, self.height, self.channels, self.format, function(x,y)
@@ -791,7 +813,7 @@ end
 
 function Image:getHistogram()
 	local hist = {}
-	local p = ffi.cast('uint8_t*', self.buffer)
+	local p = uint8_t_p(self.buffer)
 	local pixlen = self.channels * ffi.sizeof(self.format)
 	for i=0,self.height*self.width-1 do
 		local key = ffi.string(p, pixlen)

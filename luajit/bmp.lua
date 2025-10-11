@@ -5,7 +5,9 @@ I'm also saving images upside-down ... but I'm working with flipped buffers so i
 local Loader = require 'image.luajit.loader'
 local ffi = require 'ffi'
 local stdio = require 'ffi.req' 'c.stdio'	-- use stdio instead of ffi.C for browser compat
-local gcmem = require 'ext.gcmem'
+
+local uint8_t_arr = ffi.typeof'uint8_t[?]'
+local int1 = ffi.typeof'int[1]'
 
 ffi.cdef[[
 
@@ -44,13 +46,16 @@ typedef struct tagBITMAPINFOHEADER BITMAPINFOHEADER;
 #pragma pack(0)
 ]]
 
+local BITMAPFILEHEADER_1 = ffi.typeof'BITMAPFILEHEADER[1]'
+local BITMAPINFOHEADER_1 = ffi.typeof'BITMAPINFOHEADER[1]'
+
 local BMPLoader = Loader:subclass()
 
 function BMPLoader:load(filename)
 	local file = stdio.fopen(filename, 'rb')
 	if file == nil then error("failed to open file "..filename.." for reading") end
 
-	local fileHeader = gcmem.new('BITMAPFILEHEADER', 1)
+	local fileHeader = BITMAPFILEHEADER_1()
 	stdio.fread(fileHeader, ffi.sizeof(fileHeader[0]), 1, file)
 
 --[[
@@ -65,7 +70,7 @@ function BMPLoader:load(filename)
 	assert(fileHeader[0].bfType == 0x4d42, "image has bad signature")
 	-- assert that the reserved are zero?
 
-	local infoHeader = gcmem.new('BITMAPINFOHEADER', 1)
+	local infoHeader = BITMAPINFOHEADER_1()
 	stdio.fread(infoHeader, ffi.sizeof(infoHeader[0]), 1, file)
 
 --[[
@@ -93,7 +98,7 @@ function BMPLoader:load(filename)
 	local height = infoHeader[0].biHeight
 	assert(height >= 0, "currently doesn't support flipped images")
 
-	local buffer = gcmem.new('uint8_t', width * height * channels)
+	local buffer = uint8_t_arr(width * height * channels)
 
 	local padding = (4-(channels * width))%4
 
@@ -134,8 +139,8 @@ function BMPLoader:save(args)
 	local padding = (4-(channels*width))%4
 	local rowsize = width * channels + padding
 
-	local fileHeader = gcmem.new('BITMAPFILEHEADER', 1)
-	local infoHeader = gcmem.new('BITMAPINFOHEADER', 1)
+	local fileHeader = BITMAPFILEHEADER_1()
+	local infoHeader = BITMAPINFOHEADER_1()
 	local headerOffset = ffi.sizeof(fileHeader[0]) + ffi.sizeof(infoHeader[0])
 
 	local file = stdio.fopen(filename, 'wb')
@@ -159,10 +164,10 @@ function BMPLoader:save(args)
 	infoHeader[0].biYPelsPerMeter = args.ydpi or 300
 	stdio.fwrite(infoHeader, ffi.sizeof(infoHeader[0]), 1, file)
 
-	local zero = gcmem.new('int', 1)
+	local zero = int1()
 	zero[0] = 0
 
-	local row = gcmem.new('uint8_t', channels * width)
+	local row = uint8_t_arr(channels * width)
 	for y=height-1,0,-1 do
 		ffi.copy(row, buffer + channels * width * y, channels * width)
 		for x=0,width-1 do
@@ -174,11 +179,6 @@ function BMPLoader:save(args)
 			stdio.fwrite(zero, padding, 1, file)
 		end
 	end
-
-	gcmem.free(zero)
-	gcmem.free(row)
-	gcmem.free(fileHeader)
-	gcmem.free(infoHeader)
 
 	stdio.fclose(file)
 end

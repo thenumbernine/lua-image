@@ -2,13 +2,17 @@ local Loader = require 'image.luajit.loader'
 local ffi = require 'ffi'
 local gif = require 'ffi.req' 'gif'
 
+local int1 = ffi.typeof'int[1]'
+local uint8_t = ffi.typeof'uint8_t'
+local uint8_t_arr = ffi.typeof'uint8_t[?]'
+
 local GIFLoader = Loader:subclass()
 
 function GIFLoader:load(filename, imageIndex)
 	assert(filename, "expected filename")
 	imageIndex = imageIndex or 0
 
-	local err = ffi.new('int[1]', 0)
+	local err = int1(0)
 	local --[[GifFileType*]] gifFile = gif.DGifOpenFileName(filename, err)
 	--if (err != D_GIF_SUCCEEDED) {
 	if gifFile == nil then
@@ -34,7 +38,7 @@ function GIFLoader:load(filename, imageIndex)
 	local width = desc.Width
 	local height = desc.Height
 	local channels = 3
-	local buffer = ffi.new('uint8_t[?]', width * height * channels)
+	local buffer = uint8_t_arr(width * height * channels)
 
 	for v=0,height-1 do
 		for u=0,width-1 do
@@ -56,7 +60,7 @@ function GIFLoader:load(filename, imageIndex)
 		width = width,
 		height = height,
 		channels = channels,
-		format = 'uint8_t',
+		format = uint8_t,
 	}
 end
 
