@@ -53,8 +53,8 @@ local function applyColorMap(image, fromto, hist)
 			ffi.copy(p, dstkey, dim)
 			p = p + dim
 		end
-	end	
-	
+	end
+
 	if hist then
 		-- map old histogram values
 		-- TODO just regen it?
@@ -65,7 +65,7 @@ local function applyColorMap(image, fromto, hist)
 		end
 		hist = newhist
 	end
-	
+
 	return image, hist
 end
 
@@ -79,7 +79,7 @@ args:
 local function buildColorMapMedianCut(args)
 	local hist = assert.index(args, 'hist')
 	local targetSize = assert.index(args, 'targetSize')
-	
+
 	local mergeMethod = args.mergeMethod or 'weighted'
 
 	local dim
@@ -124,12 +124,12 @@ local function buildColorMapMedianCut(args)
 		local a = Node()
 		local b = Node()
 		local k = self.biggestDim
-	
+
 		--[=[ aabb based
 		--[[ pick the midpoint of the largest dimension interval
 		local mid = .5 * (self.max.v[k] + self.min.v[k])
 		--]]
-		-- [[ pick the weighted midpoint to divide the 
+		-- [[ pick the weighted midpoint to divide the
 		-- sorting the pts array along each axis ... its order doesn't matter, right?
 		self.pts:sort(function(a,b) return a.pt:byte(k+1,k+1) < b.pt:byte(k+1,k+1) end)
 		local total = self.pts:mapi(function(pt) return pt.weight end):sum()
@@ -137,8 +137,8 @@ local function buildColorMapMedianCut(args)
 		local sofar = 0
 		local mid
 		for _,pt in ipairs(self.pts) do
-			if sofar > half then 
-				mid = pt.pt:byte(k+1,k+1) 
+			if sofar > half then
+				mid = pt.pt:byte(k+1,k+1)
 				break
 			end
 			sofar = sofar + pt.weight
@@ -170,12 +170,12 @@ local function buildColorMapMedianCut(args)
 			end
 		end
 		local planeNormal = vector(double, dim)	-- normal points to ci from cj
-		local planeConst = 0	-- dist = -p dot n for some point p on the normal ... cj for now, 
+		local planeConst = 0	-- dist = -p dot n for some point p on the normal ... cj for now,
 		-- so cj should eval to 0 dist from the plane and ci should be + dist
 		for k=1,dim do
 			local cik = bestci:byte(k,k)
 			local cjk = bestcj:byte(k,k)
-			local nk = cik - cjk 
+			local nk = cik - cjk
 			planeNormal.v[k-1] = nk
 			planeConst = planeConst - cjk * nk
 			--for cj: dist = -cjk * nk + cjk * nk = 0
@@ -199,7 +199,7 @@ local function buildColorMapMedianCut(args)
 		local sofar = 0
 		local mid
 		for _,pt in ipairs(self.pts) do
-			if sofar > half then 
+			if sofar > half then
 				mid = pt.planeDist
 				break
 			end
@@ -231,19 +231,19 @@ local function buildColorMapMedianCut(args)
 		root:addPt(color, count)
 	end
 	root:calcSize()
-	
+
 	local nodes = table{root}
 
 	while #nodes < targetSize do
-		nodes:sort(function(a,b) 
-			return a.size.v[a.biggestDim] < b.size.v[b.biggestDim] 
+		nodes:sort(function(a,b)
+			return a.size.v[a.biggestDim] < b.size.v[b.biggestDim]
 		end)
 		if #nodes:last().pts <= 1 then break end	-- the biggest range node has 1 pt, so nothing more can be split
 		local node = nodes:remove()
 		local a,b = node:split()
 		nodes:insert(a)
 		nodes:insert(b)
-	end	
+	end
 	-- TODO convert to hsv beforehand?
 	-- TODO find the best plane to divide by instead of axis-aligned?
 	-- ... to do that you need to do eigen decomposition of the adjacency matrix
@@ -283,7 +283,7 @@ local function buildColorMapMedianCut(args)
 		end
 	end
 	--]=]
-	
+
 	return fromto
 end
 
@@ -302,7 +302,7 @@ end
 local function reduceColorsMedianCut(args)
 	local targetSize = assert.index(args, 'targetSize')
 	local image = assert.index(args, 'image')
-	
+
 	local hist = args.hist or buildHistogram(image)
 
 	local fromto = buildColorMapMedianCut{

@@ -7,6 +7,7 @@ local ffi = require 'ffi'
 local class = require 'ext.class'
 local path = require 'ext.path'	-- getext
 local table = require 'ext.table'
+local string = require 'ext.string'
 local assert = require 'ext.assert'
 
 
@@ -1192,6 +1193,49 @@ function Image:drawRegions(regions)
 		region:drawMaskToImage(self, color)
 	end
 	return self
+end
+
+-- I convert to palette often enough
+--[[
+args:
+	size = max size of palette
+returns a new 1bpp indexed image with .palette assigned
+--]]
+function Image:toIndexed(args)
+	args = args or {}
+	local targetSize = args.targetSize or 256
+
+	-- TODO this in the image/tests/quantize tool
+	-- and then use it in numo9/edit/sheet.lua
+	local Quantize = require 'image.quantize_mediancut'
+	local image, hist = Quantize.reduceColorsMedianCut{
+		image = self,
+		targetSize = targetSize,
+	}
+	local colors = table.keys(hist):sort()
+	local indexForColor = colors:mapi(function(color,i)	-- 0-based index
+		return i-1, color
+	end)
+	local image1ch = Image(image.width, image.height, 1, uint8_t)
+	local srcp = image.buffer
+	local dstp = image1ch.buffer
+	local chsize = ffi.sizeof(image.format) * image.channels
+	for i=0,image.width*image.height-1 do
+		local key = ffi.string(srcp, chsize)
+		local dstIndex = indexForColor[key]
+		if not dstIndex then
+print("no index for color "..string.hex(key))
+print('possible colors: '..require 'ext.tolua'(colors))
+			error'here'
+		end
+		dstp[0] = dstIndex
+		dstp = dstp + 1
+		srcp = srcp + chsize
+	end
+	image1ch.palette = colors:mapi(function(color)
+		return string.bytes(color)
+	end)
+	return image1ch
 end
 
 return Image
