@@ -6,6 +6,7 @@ Then this can be just 'image.quantize_mediancut'
 --]]
 local ffi = require 'ffi'
 local table = require 'ext.table'
+local assert = require 'ext.assert'
 local string = require 'ext.string'
 local class = require 'ext.class'
 local range = require 'ext.range'
@@ -15,7 +16,7 @@ local uint8_t_p = ffi.typeof'uint8_t*'
 
 local function bindistsq(a, b)
 	local n = #a
-	assert(n == #b)
+	assert.len(b, n)
 	local sum = 0
 	for i=1,n do
 		local ai = a:byte(i,i)
@@ -77,8 +78,8 @@ args:
 		replaceHighestWeight
 --]]
 local function buildColorMapMedianCut(args)
-	local hist = assert(args.hist)
-	local targetSize = assert(args.targetSize)
+	local hist = assert.index(args, 'hist')
+	local targetSize = assert.index(args, 'targetSize')
 	
 	local mergeMethod = args.mergeMethod or 'weighted'
 
@@ -87,7 +88,7 @@ local function buildColorMapMedianCut(args)
 		if not dim then
 			dim = #color
 		else
-			assert(dim == #color)
+			assert.len(color, dim)
 		end
 	end
 	if not dim then return end
@@ -300,8 +301,8 @@ local function buildHistogram(image)
 end
 
 local function reduceColorsMedianCut(args)
-	local targetSize = assert(args.targetSize)
-	local image = assert(args.image)
+	local targetSize = assert.index(args, 'targetSize')
+	local image = assert.index(args, 'image')
 	assert.eq(image.channels, 3)
 	
 	local hist = args.hist or buildHistogram(image)
