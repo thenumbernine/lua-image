@@ -12,6 +12,7 @@ local ffi = require 'ffi'
 require 'ffi.req' 'c.string'
 local fits = require 'ffi.req' 'fitsio'
 
+local void_p = ffi.typeof'void*'
 local char = ffi.typeof'char'
 local signed_char = ffi.typeof'signed char'
 local unsigned_char = ffi.typeof'unsigned char'
@@ -172,7 +173,7 @@ function FITSLoader:save(args)
 
 	local imgType = formatInfo.imgType
 
-	fits.ffppx(fitsFilePtr[0], imgType, firstpix, numPixels, ffi.cast('void*', buffer), status)
+	fits.ffppx(fitsFilePtr[0], imgType, firstpix, numPixels, ffi.cast(void_p, buffer), status)
 	assert.eq(status[0], 0, "ffppx failed")
 
 	fits.ffclos(fitsFilePtr[0], status);

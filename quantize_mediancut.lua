@@ -11,6 +11,8 @@ local class = require 'ext.class'
 local range = require 'ext.range'
 local vector = require 'ffi.cpp.vector-lua'
 
+local uint8_t_p = ffi.typeof'uint8_t*'
+
 local function bindistsq(a, b)
 	local n = #a
 	assert(n == #b)
@@ -288,7 +290,7 @@ end
 local function buildHistogram(image)
 	local dim = image.channels * ffi.sizeof(image.format)
 	local hist = {}
-	local p = ffi.cast('uint8_t*', image.buffer)
+	local p = ffi.cast(uint8_t_p, image.buffer)
 	for i=0,image.height*image.width-1 do
 		local key = ffi.string(p, dim)
 		hist[key] = (hist[key] or 0) + 1
@@ -300,7 +302,7 @@ end
 local function reduceColorsMedianCut(args)
 	local targetSize = assert(args.targetSize)
 	local image = assert(args.image)
-	assert(image.channels == 3)
+	assert.eq(image.channels, 3)
 	
 	local hist = args.hist or buildHistogram(image)
 

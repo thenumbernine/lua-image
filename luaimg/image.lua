@@ -5,6 +5,9 @@ local ffi = require 'ffi'
 local class = require 'ext.class'
 local img = require 'img'	-- working on 'libImageLua', but too many libpaths searched through
 
+local uint8_t_p = ffi.typeof'uint8_t*'
+local uint8_t_arr = ffi.typeof'uint8_t[?]'
+
 local Image = class()
 
 local function oldimgloader(image, fn)
@@ -47,11 +50,11 @@ function Image:data(...)
 	--[[ pushes a copy
 	local w, h, ch = self:size()
 	local datasize = w * h * ch
-	local data = ffi.new('unsigned char [?]', datasize)
-	ffi.copy(data, self.img:dataptr(), datasize)	-- userdata to unsigned char[]
+	local data = ffi.new(uint8_t_arr, datasize)
+	ffi.copy(data, self.img:dataptr(), datasize)	-- userdata to uint8_t[]
 	return data
 	--]]
-	return ffi.cast('unsigned char *',self.img:dataptr())
+	return ffi.cast(uint8_t_p,self.img:dataptr())
 end
 
 function Image:save(...)

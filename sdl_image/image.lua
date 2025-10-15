@@ -4,6 +4,8 @@ local img = require 'ffi.req' 'sdl_image'
 local class = require 'ext.class'
 local path = require 'ext.path'
 
+local uint8_t_p = ffi.typeof'uint8_t*'
+
 local rgbaPixelFormat
 if ffi.os == 'Windows' then
 	rgbaPixelFormat = ffi.new('SDL_PixelFormat[1]')
@@ -55,13 +57,13 @@ function Image:size()
 end
 
 function Image:data()
-	return ffi.cast('unsigned char *', self.surface.pixels)
+	return ffi.cast(uint8_t_p, self.surface.pixels)
 end
 
 -- TODO verify rgba order
 function Image:__call(x,y,r,g,b,a)
 	local i = 4 * (x + self.surface.w * y)
-	local pixels = ffi.cast('unsigned char *', self.surface.pixels)
+	local pixels = ffi.cast(uint8_t_p, self.surface.pixels)
 	local _r = pixels[i+0] / 255
 	local _g = pixels[i+1] / 255
 	local _b = pixels[i+2] / 255
