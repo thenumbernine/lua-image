@@ -13,6 +13,7 @@ local range = require 'ext.range'
 local vector = require 'ffi.cpp.vector-lua'
 
 local uint8_t_p = ffi.typeof'uint8_t*'
+local double = ffi.typeof'double'
 
 local function bindistsq(a, b)
 	local n = #a
@@ -33,13 +34,11 @@ TODO make fromto the first arg (and this a member of its class?)
 --]]
 local function applyColorMap(image, fromto, hist)
 	if image then
+		local dim = image.channels * ffi.sizeof(image.format)
 		image = image:clone()
 		local p = image.buffer
 		for i=0,image.width*image.height-1 do
-			local key = 
-				-- image.channels == 3 and 	-- TODO 
-				string.char(p[0], p[1], p[2])
-				--or string.char(p[0], p[1], p[2], p[3])
+			local key = ffi.string(p, dim)
 			local dstkey = fromto[key]
 			if not dstkey then
 				print("no fromto for color "..string.hex(key))
@@ -51,8 +50,8 @@ local function applyColorMap(image, fromto, hist)
 				end)))
 				error'here'
 			end
-			p[0], p[1], p[2] = dstkey:byte(1,3)
-			p = p + 3
+			ffi.copy(p, dstkey, dim)
+			p = p + dim
 		end
 	end	
 	
@@ -98,9 +97,9 @@ local function buildColorMapMedianCut(args)
 	local Node = class()
 	function Node:init()
 		self.pts = table()
-		self.min = vector('double', dim)
-		self.max = vector('double', dim)
-		self.size = vector('double', dim)
+		self.min = vector(double, dim)
+		self.max = vector(double, dim)
+		self.size = vector(double, dim)
 		for i=0,dim-1 do
 			self.min.v[i] = math.huge
 			self.max.v[i] = -math.huge
@@ -170,7 +169,7 @@ local function buildColorMapMedianCut(args)
 				end
 			end
 		end
-		local planeNormal = vector('double', dim)	-- normal points to ci from cj
+		local planeNormal = vector(double, dim)	-- normal points to ci from cj
 		local planeConst = 0	-- dist = -p dot n for some point p on the normal ... cj for now, 
 		-- so cj should eval to 0 dist from the plane and ci should be + dist
 		for k=1,dim do
@@ -255,7 +254,7 @@ local function buildColorMapMedianCut(args)
 		local tokey
 		-- use weighted average
 		if mergeMethod == 'weighted' then
-			local avg = vector('double', dim)
+			local avg = vector(double, dim)
 			local norm = 0
 			for _,pt in ipairs(node.pts) do
 				local weight = pt.weight
@@ -303,7 +302,6 @@ end
 local function reduceColorsMedianCut(args)
 	local targetSize = assert.index(args, 'targetSize')
 	local image = assert.index(args, 'image')
-	assert.eq(image.channels, 3)
 	
 	local hist = args.hist or buildHistogram(image)
 

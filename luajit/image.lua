@@ -1031,6 +1031,7 @@ function Blob:calcArea()
 	return area
 end
 
+-- TODO anon type?
 ffi.cdef[[
 typedef struct {
 	int x1;
@@ -1040,7 +1041,9 @@ typedef struct {
 	int blob;	//blob index
 } ImageBlobRowInterval_t;
 ]]
+local ImageBlobRowInterval_t = ffi.typeof'ImageBlobRowInterval_t'
 
+-- TODO put this in its own file?
 local vector = require 'ffi.cpp.vector-lua'
 
 function Image:getBlobs(ctx)
@@ -1054,7 +1057,7 @@ function Image:getBlobs(ctx)
 	for j=1,self.height do
 		local row = rowregions[j]
 		if not row then
-			row = vector'ImageBlobRowInterval_t'
+			row = vector(ImageBlobRowInterval_t)
 			rowregions[j] = row
 		else
 			row:clear()
