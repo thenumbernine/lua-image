@@ -152,6 +152,7 @@ function Image:setChannels(newChannels)
 end
 
 function Image:setFormat(newFormat)
+	newFormat = ffi.typeof(newFormat)
 	assert.eq(newFormat, ffi.typeof(newFormat), 'format must be a ctype')
 	local dst = Image(self.width, self.height, self.channels, newFormat)
 	local fromFormatInfo = formatInfos[tostring(self.format)]
