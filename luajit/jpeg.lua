@@ -16,9 +16,22 @@ local jpeg_error_mgr_p = ffi.typeof'struct jpeg_error_mgr*'
 local j_common_ptr = ffi.typeof'j_common_ptr'
 local JSAMPROW_1 = ffi.typeof'JSAMPROW[1]'
 
+ffi.cdef[[
+struct my_error_mgr {
+	struct jpeg_error_mgr pub;	// "public" fields
+/* using lua errors */
+	FILE *file;
+	int writing;	//0 = reading, 1 = writing
+/**/
+/* using longjmp like in the libjpeg example code * /
+	jmp_buf setjmp_buffer;		// for return to caller
+/**/
+};
+]]
+
 local my_error_mgr_p = ffi.typeof'struct my_error_mgr*'
 local my_error_mgr_1 = ffi.typeof'struct my_error_mgr[1]'
-local handleErrorType = ffi.type'void(*)(j_common_ptr)'
+local handleErrorType = ffi.typeof'void(*)(j_common_ptr)'
 
 
 --[[ debugging
@@ -33,18 +46,6 @@ local jpeg = setmetatable({}, {
 
 local JPEGLoader = Loader:subclass()
 
-ffi.cdef[[
-struct my_error_mgr {
-	struct jpeg_error_mgr pub;	// "public" fields
-/* using lua errors */
-	FILE *file;
-	int writing;	//0 = reading, 1 = writing
-/**/
-/* using longjmp like in the libjpeg example code * /
-	jmp_buf setjmp_buffer;		// for return to caller
-/**/
-};
-]]
 local function handleError(cinfo)
 	local myerr = ffi.cast(my_error_mgr_p, cinfo[0].err)
 -- [[ using lua errors
