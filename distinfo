@@ -1,6 +1,12 @@
 name = "image"
 files = {
 	["README.md"] = "image/README.md",
+	["fitsio.lua"] = "image/fitsio.lua",
+	["gif.lua"] = "image/gif.lua",
+	["jpeg.lua"] = "image/jpeg.lua",
+	["png.lua"] = "image/png.lua",
+	["tiff.lua"] = "image/tiff.lua",
+	["zlib.lua"] = "image/zlib.lua",
 	["image-dev-1.rockspec"] = "image/image-dev-1.rockspec",
 	["image.lua"] = "image/image.lua",
 	["luaimg/image.lua"] = "image/luaimg/image.lua",
