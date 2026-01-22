@@ -22,6 +22,16 @@ files = {
 	["tests/test.lua"] = "image/tests/test.lua",
 	["tests/test.png"] = "image/tests/test.png",
 	["tests/test_png_custom_chunks.lua"] = "image/tests/test_png_custom_chunks.lua",
+	["release/bin/Linux/x64/libpng.so"] = "image/bin/Linux/x64/libpng.so",
+	["release/bin/Linux/x64/libtiff.so"] = "image/bin/Linux/x64/libtiff.so",
+	["release/bin/OSX/x64/libpng.dylib"] = "image/bin/OSX/x64/libpng.dylib",
+	["release/bin/OSX/x64/libtiff.dylib"] = "image/bin/OSX/x64/libtiff.dylib",
+	["release/bin/Windows/x64/cfitsio.dll"] = "image/bin/Windows/x64/cfitsio.dll",
+	["release/bin/Windows/x64/jpeg8.dll"] = "image/bin/Windows/x64/jpeg8.dll",
+	["release/bin/Windows/x64/libpng16.dll"] = "image/bin/Windows/x64/libpng16.dll",
+	["release/bin/Windows/x64/png.dll"] = "image/bin/Windows/x64/png.dll",
+	["release/bin/Windows/x64/tiff.dll"] = "image/bin/Windows/x64/tiff.dll",
+	["release/bin/Windows/x64/turbojpeg.dll"] = "image/bin/Windows/x64/turbojpeg.dll",
 }
 deps = {
 	"ext",
