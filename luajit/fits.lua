@@ -10,7 +10,7 @@ local path = require 'ext.path'
 local assert = require 'ext.assert'
 local ffi = require 'ffi'
 require 'ffi.req' 'c.string'
-local fits = require 'ffi.req' 'fitsio'
+local fits = require 'image.ffi.fitsio'
 
 local void_p = ffi.typeof'void*'
 local char = ffi.typeof'char'

@@ -1,7 +1,7 @@
 local Loader = require 'image.luajit.loader'
 local ffi = require 'ffi'
 local assert = require 'ext.assert'
-local tiff = require 'ffi.req' 'tiff'
+local tiff = require 'image.ffi.tiff'
 
 
 local char = ffi.typeof'char'

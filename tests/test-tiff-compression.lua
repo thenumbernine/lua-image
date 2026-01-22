@@ -1,7 +1,7 @@
 #!/usr/bin/env luajit
 local path = require 'ext.path'
 local Image = require 'image'
-local tiff = require 'ffi.req' 'tiff'
+local tiff = require 'image.ffi.tiff'
 
 local uncompressedSize
 local image = Image'test.tiff'

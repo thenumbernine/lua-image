@@ -4,7 +4,7 @@ local table = require 'ext.table'
 local range = require 'ext.range'
 local assert = require 'ext.assert'
 local stdio = require 'ffi.req' 'c.stdio'	-- use stdio instead of ffi.C for browser compat
-local png = require 'ffi.req' 'png'
+local png = require 'image.ffi.png'
 
 
 local voidp = ffi.typeof'void*'

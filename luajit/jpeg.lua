@@ -5,7 +5,7 @@ local stdio = require 'ffi.req' 'c.stdio'	-- fopen, fclose, FILE ... use stdio i
 --[[ using longjmp like in the libjpeg example code
 require 'ffi.req' 'c.setjmp'	-- jmp_buf ... hmm, can I use something else?  something that won't break Lua?
 --]]
-local jpeg = require 'ffi.req' 'jpeg'
+local jpeg = require 'image.ffi.jpeg'
 
 
 local uint8_t = ffi.typeof'uint8_t'

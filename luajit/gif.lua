@@ -1,6 +1,6 @@
 local Loader = require 'image.luajit.loader'
 local ffi = require 'ffi'
-local gif = require 'ffi.req' 'gif'
+local gif = require 'image.ffi.gif'
 
 local int1 = ffi.typeof'int[1]'
 local uint8_t = ffi.typeof'uint8_t'
