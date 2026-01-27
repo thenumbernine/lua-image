@@ -1,12 +1,13 @@
 name = "image"
 files = {
 	["README.md"] = "image/README.md",
-	["fitsio.lua"] = "image/fitsio.lua",
-	["gif.lua"] = "image/gif.lua",
-	["jpeg.lua"] = "image/jpeg.lua",
-	["png.lua"] = "image/png.lua",
-	["tiff.lua"] = "image/tiff.lua",
-	["zlib.lua"] = "image/zlib.lua",
+	["distinfo"] = "image/distinfo",
+	["ffi/fitsio.lua"] = "image/ffi/fitsio.lua",
+	["ffi/gif.lua"] = "image/ffi/gif.lua",
+	["ffi/jpeg.lua"] = "image/ffi/jpeg.lua",
+	["ffi/png.lua"] = "image/ffi/png.lua",
+	["ffi/tiff.lua"] = "image/ffi/tiff.lua",
+	["ffi/zlib.lua"] = "image/ffi/zlib.lua",
 	["image-dev-1.rockspec"] = "image/image-dev-1.rockspec",
 	["image.lua"] = "image/image.lua",
 	["luaimg/image.lua"] = "image/luaimg/image.lua",
@@ -21,6 +22,7 @@ files = {
 	["quantize_mediancut.lua"] = "image/quantize_mediancut.lua",
 	["sdl_image/image.lua"] = "image/sdl_image/image.lua",
 	["tests/info.lua"] = "image/tests/info.lua",
+	["tests/quantize.lua"] = "image/tests/quantize.lua",
 	["tests/test-all.lua"] = "image/tests/test-all.lua",
 	["tests/test-tiff-compression.lua"] = "image/tests/test-tiff-compression.lua",
 	["tests/test.bmp"] = "image/tests/test.bmp",
@@ -28,17 +30,24 @@ files = {
 	["tests/test.lua"] = "image/tests/test.lua",
 	["tests/test.png"] = "image/tests/test.png",
 	["tests/test_png_custom_chunks.lua"] = "image/tests/test_png_custom_chunks.lua",
-	["release/bin/Linux/x64/libpng.so"] = "image/bin/Linux/x64/libpng.so",
-	["release/bin/Linux/x64/libtiff.so"] = "image/bin/Linux/x64/libtiff.so",
-	["release/bin/OSX/x64/libpng.dylib"] = "image/bin/OSX/x64/libpng.dylib",
-	["release/bin/OSX/x64/libtiff.dylib"] = "image/bin/OSX/x64/libtiff.dylib",
-	["release/bin/Windows/x64/cfitsio.dll"] = "image/bin/Windows/x64/cfitsio.dll",
-	["release/bin/Windows/x64/jpeg8.dll"] = "image/bin/Windows/x64/jpeg8.dll",
-	["release/bin/Windows/x64/libpng16.dll"] = "image/bin/Windows/x64/libpng16.dll",
-	["release/bin/Windows/x64/png.dll"] = "image/bin/Windows/x64/png.dll",
-	["release/bin/Windows/x64/tiff.dll"] = "image/bin/Windows/x64/tiff.dll",
-	["release/bin/Windows/x64/turbojpeg.dll"] = "image/bin/Windows/x64/turbojpeg.dll",
 }
+
+-- TODO separate per OS for dist packaging only
+files_bin = {
+	["bin/Linux/x64/libjpeg.so"] = "image/bin/Linux/x64/libjpeg.so",
+	["bin/Linux/x64/libpng.so"] = "image/bin/Linux/x64/libpng.so",
+	["bin/Linux/x64/libtiff.so"] = "image/bin/Linux/x64/libtiff.so",
+	["bin/Linux/x64/libz.so"] = "image/bin/Linux/x64/libz.so",
+	["bin/OSX/x64/libpng.dylib"] = "image/bin/OSX/x64/libpng.dylib",
+	["bin/OSX/x64/libtiff.dylib"] = "image/bin/OSX/x64/libtiff.dylib",
+	["bin/Windows/x64/cfitsio.dll"] = "image/bin/Windows/x64/cfitsio.dll",
+	["bin/Windows/x64/jpeg.dll"] = "image/bin/Windows/x64/jpeg.dll",
+	["bin/Windows/x64/png.dll"] = "image/bin/Windows/x64/png.dll",
+	["bin/Windows/x64/tiff.dll"] = "image/bin/Windows/x64/tiff.dll",
+	["bin/Windows/x64/turbojpeg.dll"] = "image/bin/Windows/x64/turbojpeg.dll",
+	["bin/Windows/x64/zlib.dll"] = "image/bin/Windows/x64/zlib.dll",
+}
+
 deps = {
 	"ext",
 	"ffi",
