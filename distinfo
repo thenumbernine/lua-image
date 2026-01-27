@@ -47,7 +47,7 @@ deps = {
 	"vec-ffi",
 }
 
-generateBindings = {
+generateBindings = function()return{
 	-- produces an "int void" because macro arg-expansion covers already-expanded macro-args
 	{
 		inc = '<png.h>',
@@ -480,4 +480,4 @@ end
 		end,
 	},
 
-}
+}end
