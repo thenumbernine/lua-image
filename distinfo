@@ -1,53 +1,64 @@
+--------------------------------------------
+-- generated with dist/build-distinfo.rua --
+--------------------------------------------
+
 name = "image"
 files = {
-	["README.md"] = "image/README.md",
-	["distinfo"] = "image/distinfo",
-	["ffi/fitsio.lua"] = "image/ffi/fitsio.lua",
-	["ffi/gif.lua"] = "image/ffi/gif.lua",
-	["ffi/jpeg.lua"] = "image/ffi/jpeg.lua",
-	["ffi/png.lua"] = "image/ffi/png.lua",
-	["ffi/tiff.lua"] = "image/ffi/tiff.lua",
-	["ffi/zlib.lua"] = "image/ffi/zlib.lua",
-	["image-dev-1.rockspec"] = "image/image-dev-1.rockspec",
-	["image.lua"] = "image/image.lua",
-	["luaimg/image.lua"] = "image/luaimg/image.lua",
-	["luajit/bmp.lua"] = "image/luajit/bmp.lua",
-	["luajit/fits.lua"] = "image/luajit/fits.lua",
-	["luajit/gif.lua"] = "image/luajit/gif.lua",
-	["luajit/image.lua"] = "image/luajit/image.lua",
-	["luajit/jpeg.lua"] = "image/luajit/jpeg.lua",
-	["luajit/loader.lua"] = "image/luajit/loader.lua",
-	["luajit/png.lua"] = "image/luajit/png.lua",
-	["luajit/tiff.lua"] = "image/luajit/tiff.lua",
-	["quantize_mediancut.lua"] = "image/quantize_mediancut.lua",
-	["sdl_image/image.lua"] = "image/sdl_image/image.lua",
-	["tests/info.lua"] = "image/tests/info.lua",
-	["tests/quantize.lua"] = "image/tests/quantize.lua",
-	["tests/test-all.lua"] = "image/tests/test-all.lua",
-	["tests/test-tiff-compression.lua"] = "image/tests/test-tiff-compression.lua",
-	["tests/test.bmp"] = "image/tests/test.bmp",
-	["tests/test.gif"] = "image/tests/test.gif",
-	["tests/test.lua"] = "image/tests/test.lua",
-	["tests/test.png"] = "image/tests/test.png",
-	["tests/test_png_custom_chunks.lua"] = "image/tests/test_png_custom_chunks.lua",
+	"README.md",
+	"distinfo",
+	"ffi/fitsio.lua",
+	"ffi/gif.lua",
+	"ffi/jpeg.lua",
+	"ffi/png.lua",
+	"ffi/tiff.lua",
+	"ffi/zlib.lua",
+	"image-dev-1.rockspec",
+	"image.lua",
+	"luaimg/image.lua",
+	"luajit/bmp.lua",
+	"luajit/fits.lua",
+	"luajit/gif.lua",
+	"luajit/image.lua",
+	"luajit/jpeg.lua",
+	"luajit/loader.lua",
+	"luajit/png.lua",
+	"luajit/tiff.lua",
+	"quantize_mediancut.lua",
+	"sdl_image/image.lua",
+	"tests/info.lua",
+	"tests/quantize.lua",
+	"tests/test-all.lua",
+	"tests/test-tiff-compression.lua",
+	"tests/test.bmp",
+	"tests/test.gif",
+	"tests/test.lua",
+	"tests/test.png",
+	"tests/test_png_custom_chunks.lua",
 }
-
--- TODO separate per OS for dist packaging only
-files_bin = {
-	["bin/Linux/x64/libjpeg.so"] = "image/bin/Linux/x64/libjpeg.so",
-	["bin/Linux/x64/libpng.so"] = "image/bin/Linux/x64/libpng.so",
-	["bin/Linux/x64/libtiff.so"] = "image/bin/Linux/x64/libtiff.so",
-	["bin/Linux/x64/libz.so"] = "image/bin/Linux/x64/libz.so",
-	["bin/OSX/x64/libpng.dylib"] = "image/bin/OSX/x64/libpng.dylib",
-	["bin/OSX/x64/libtiff.dylib"] = "image/bin/OSX/x64/libtiff.dylib",
-	["bin/Windows/x64/cfitsio.dll"] = "image/bin/Windows/x64/cfitsio.dll",
-	["bin/Windows/x64/jpeg.dll"] = "image/bin/Windows/x64/jpeg.dll",
-	["bin/Windows/x64/png.dll"] = "image/bin/Windows/x64/png.dll",
-	["bin/Windows/x64/tiff.dll"] = "image/bin/Windows/x64/tiff.dll",
-	["bin/Windows/x64/turbojpeg.dll"] = "image/bin/Windows/x64/turbojpeg.dll",
-	["bin/Windows/x64/zlib.dll"] = "image/bin/Windows/x64/zlib.dll",
-}
-
+if ffi.os == "Linux" and ffi.arch == "x64" then
+	table.append(files, {
+		"bin/Linux/x64/libjpeg.so",
+		"bin/Linux/x64/libpng.so",
+		"bin/Linux/x64/libtiff.so",
+		"bin/Linux/x64/libz.so",
+	})
+end
+if ffi.os == "OSX" and ffi.arch == "x64" then
+	table.append(files, {
+		"bin/OSX/x64/libpng.dylib",
+		"bin/OSX/x64/libtiff.dylib",
+	})
+end
+if ffi.os == "Windows" and ffi.arch == "x64" then
+	table.append(files, {
+		"bin/Windows/x64/cfitsio.dll",
+		"bin/Windows/x64/jpeg.dll",
+		"bin/Windows/x64/png.dll",
+		"bin/Windows/x64/tiff.dll",
+		"bin/Windows/x64/turbojpeg.dll",
+		"bin/Windows/x64/zlib.dll",
+	})
+end
 deps = {
 	"ext",
 	"ffi",
