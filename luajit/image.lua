@@ -1046,7 +1046,7 @@ typedef struct {
 local ImageBlobRowInterval_t = ffi.typeof'ImageBlobRowInterval_t'
 
 -- TODO put this in its own file?
-local vector = require 'ffi.cpp.vector-lua'
+local vector = require 'stl.vector-lua'
 
 function Image:getBlobs(ctx)
 	local classify = assert(ctx.classify)

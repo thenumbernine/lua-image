@@ -63,6 +63,7 @@ deps = {
 	"ext",
 	"ffi",
 	"sdl",
+	"stl",
 	"solver",	-- TODO remove this / make it optional / only when externally specified?
 	"vec-ffi",
 }
@@ -499,5 +500,4 @@ end
 			return code
 		end,
 	},
-
 }end

@@ -10,7 +10,7 @@ local assert = require 'ext.assert'
 local string = require 'ext.string'
 local class = require 'ext.class'
 local range = require 'ext.range'
-local vector = require 'ffi.cpp.vector-lua'
+local vector = require 'stl.vector-lua'
 
 local uint8_t_p = ffi.typeof'uint8_t*'
 local double = ffi.typeof'double'
