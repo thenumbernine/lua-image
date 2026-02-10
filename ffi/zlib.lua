@@ -14,7 +14,7 @@ if ffi.os == 'Linux' then
 typedef long z_off_t;
 typedef off_t z_off64_t;
 ]]
-elseif ffi.os == 'OSX' then
+elseif ffi.os == 'OSX' or ffi.os == 'Android' then
 	require 'ffi.req' 'c.unistd'
 	ffi.cdef[[
 typedef off_t z_off_t;
