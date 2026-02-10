@@ -1,4 +1,6 @@
 local ffi = require 'ffi'
+local zlib = require 'image.ffi.zlib'
+
 
 -- comments
 
