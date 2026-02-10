@@ -76,26 +76,30 @@ deps = {
 	"vec-ffi",
 }
 
-generateBindings = function()return{
-	-- produces an "int void" because macro arg-expansion covers already-expanded macro-args
-	{
-		inc = '<png.h>',
-		out = 'png.lua',
-		macroincs = {
-			'<pngconf.h>',
-			'<pnglibconf.h>',
-		},
-		final = function(code, preproc)
-			-- TODO remove contents of pnglibconf.h, or at least the PNG_*_SUPPORTED macros
+generateBindings = function()
+	local safegsub = require 'include.util'.safegsub
+	local removeEnum = require 'include.util'.removeEnum
+	local makeLibWrapper = require 'include.util'.makeLibWrapper
+	return{
+		-- produces an "int void" because macro arg-expansion covers already-expanded macro-args
+		{
+			inc = '<png.h>',
+			out = 'png.lua',
+			macroincs = {
+				'<pngconf.h>',
+				'<pnglibconf.h>',
+			},
+			final = function(code, preproc)
+				-- TODO remove contents of pnglibconf.h, or at least the PNG_*_SUPPORTED macros
 
-			-- still working out macro bugs ... if macro expands arg A then I don't want it to expand arg B
-			--code = safegsub(code, 'int void', 'int type');
+				-- still working out macro bugs ... if macro expands arg A then I don't want it to expand arg B
+				--code = safegsub(code, 'int void', 'int type');
 
-			local code = makeLibWrapper{
-				code = code,
-				preproc = preproc,
-				lib = 'png',
-				footerCode = [[
+				local code = makeLibWrapper{
+					code = code,
+					preproc = preproc,
+					lib = 'png',
+					footerCode = [[
 -- macros
 
 wrapper.PNG_LIBPNG_VER_STRING = ]]..preproc.macros.PNG_LIBPNG_VER_STRING..'\n'..[[
@@ -107,38 +111,38 @@ function wrapper.png_libpng_ver() return wrapper.png_get_header_ver(nil) end
 wrapper.PNG_GAMMA_THRESHOLD = wrapper.PNG_GAMMA_THRESHOLD_FIXED * .00001
 
 ]],
-			}
-			-- zlib libtiff libpng EGL
-			code = code:gsub(string.patescape'(void)', '()')
-			return code
-		end,
-	},
-
-	-- apt install libjpeg-turbo-dev
-	-- linux is using 2.1.2 which generates no different than 2.0.3
-	--  based on apt package libturbojpeg0-dev
-	-- windows is using 2.0.4 just because 2.0.3 and cmake is breaking for msvc
-	{
-		inc = '<jpeglib.h>',
-		pkgconfig = 'libjpeg',
-		-- [[ TODO
-		macroincs = {
-			-- these are for the macro preprocessor to know what macros to keep for emitting into enums, vs which to throw out
-			'<jconfig.h>',
-			'<jmorecfg.h>',
+				}
+				-- zlib libtiff libpng EGL
+				code = safegsub(code, string.patescape'(void)', '()')
+				return code
+			end,
 		},
-		--]]
-		out = 'jpeg.lua',
-		final = function(code, preproc)
-			return makeLibWrapper{
-				code = code,
-				lib = 'jpeg',
-				requires = {
-					"require 'ffi.req' 'c.stdio'	-- for FILE, even though jpeglib.h itself never includes <stdio.h> ... hmm ...",
 
-					-- I guess I have to hard-code the OS-specific typedef stuff that goes in the header ...
-					-- and then later gsub out these typedefs in each OS that generates it...
-					[=[
+		-- apt install libjpeg-turbo-dev
+		-- linux is using 2.1.2 which generates no different than 2.0.3
+		--  based on apt package libturbojpeg0-dev
+		-- windows is using 2.0.4 just because 2.0.3 and cmake is breaking for msvc
+		{
+			inc = '<jpeglib.h>',
+			pkgconfig = 'libjpeg',
+			-- [[ TODO
+			macroincs = {
+				-- these are for the macro preprocessor to know what macros to keep for emitting into enums, vs which to throw out
+				'<jconfig.h>',
+				'<jmorecfg.h>',
+			},
+			--]]
+			out = 'jpeg.lua',
+			final = function(code, preproc)
+				return makeLibWrapper{
+					code = code,
+					lib = 'jpeg',
+					requires = {
+						"require 'ffi.req' 'c.stdio'	-- for FILE, even though jpeglib.h itself never includes <stdio.h> ... hmm ...",
+
+						-- I guess I have to hard-code the OS-specific typedef stuff that goes in the header ...
+						-- and then later gsub out these typedefs in each OS that generates it...
+						[=[
 
 -- TODO does this discrepency still exist in Windows' LibJPEG Turbo 3.0.4 ?
 if ffi.os == 'Windows' then
@@ -152,8 +156,8 @@ typedef long INT32;
 typedef int boolean;
 ]]
 end]=]
-				},
-				footerCode = [[
+					},
+					footerCode = [[
 
 -- these are #define's in jpeglib.h
 
@@ -169,215 +173,215 @@ function wrapper.jpeg_create_decompress(cinfo)
 	return wrapper.jpeg_CreateDecompress(cinfo, wrapper.JPEG_LIB_VERSION, ffi.sizeof'struct jpeg_decompress_struct')
 end
 ]]
-			}
-		end,
-		ffiload = {
-			jpeg = {
-				-- For Windows msvc turbojpeg 2.0.3 cmake wouldn't build, so i used 2.0.4 instead
-				-- I wonder if this is the reason for the few subtle differences
-				-- TODO rebuild linux with 2.0.4 and see if they go away?
-				Windows = 'jpeg8',
-				-- for Linux, libturbojpeg 2.1.2 (which is not libjpeg-turbo *smh* who named this)
-				-- the header generated matches libturbojpeg 2.0.3 for Ubuntu ... except the version macros
+				}
+			end,
+			ffiload = {
+				jpeg = {
+					-- For Windows msvc turbojpeg 2.0.3 cmake wouldn't build, so i used 2.0.4 instead
+					-- I wonder if this is the reason for the few subtle differences
+					-- TODO rebuild linux with 2.0.4 and see if they go away?
+					Windows = 'jpeg8',
+					-- for Linux, libturbojpeg 2.1.2 (which is not libjpeg-turbo *smh* who named this)
+					-- the header generated matches libturbojpeg 2.0.3 for Ubuntu ... except the version macros
+				},
 			},
 		},
-	},
 
-	-- depends: stdbool.h
-	-- apt install libgif-dev
-	-- brew install giflib
-	{
-		inc = '<gif_lib.h>',
-		out = 'gif.lua',
-		-- no brew pkgconfig file for giflib...
-		includedirs = ffi.os == 'OSX' and {
-			'/usr/local/opt/giflib/include/',
-		} or nil,
-		final = function(code)
-			code = [[
+		-- depends: stdbool.h
+		-- apt install libgif-dev
+		-- brew install giflib
+		{
+			inc = '<gif_lib.h>',
+			out = 'gif.lua',
+			-- no brew pkgconfig file for giflib...
+			includedirs = ffi.os == 'OSX' and {
+				'/usr/local/opt/giflib/include/',
+			} or nil,
+			final = function(code)
+				code = [[
 ]] .. code .. [[
 return require 'ffi.load' 'gif'
 ]]
-			return code
-		end,
-	},
-
-	{
-		inc='<fitsio.h>',
-		out='fitsio.lua',
-		macroincs = {
-			'<longnam.h>',
+				return code
+			end,
 		},
-		final=function(code, preproc)
-			code = removeEnum(code, string.patescape'DOUBLENULLVALUE = -9.1191291391491e-36')
 
-			local funcMacros = table()
-			-- [[
-			local lines = string.split(code, '\n')
-			for i=#lines,1,-1 do
-				-- TODO if we had symbol access (header() processor within makeLibWrapper)
-				--  then I could compare #define targets to symbols and capture accordingly...
-				local line = lines[i]
-				local to, from = line:match'^/%* #define (fits%S+)%s+(%S+) ###'
-				if to then
-					funcMacros:insert{to, from}
-					lines:remove(i)
-				else
-					-- the one that doesn't fit the rule
-					local to, from = line:match'^/%* #define (ffcpimg)%s+(%S+) ###'
+		{
+			inc='<fitsio.h>',
+			out='fitsio.lua',
+			macroincs = {
+				'<longnam.h>',
+			},
+			final=function(code, preproc)
+				code = removeEnum(code, string.patescape'DOUBLENULLVALUE = -9.1191291391491e-36')
+
+				local funcMacros = table()
+				-- [[
+				local lines = string.split(code, '\n')
+				for i=#lines,1,-1 do
+					-- TODO if we had symbol access (header() processor within makeLibWrapper)
+					--  then I could compare #define targets to symbols and capture accordingly...
+					local line = lines[i]
+					local to, from = line:match'^/%* #define (fits%S+)%s+(%S+) ###'
 					if to then
 						funcMacros:insert{to, from}
 						lines:remove(i)
+					else
+						-- the one that doesn't fit the rule
+						local to, from = line:match'^/%* #define (ffcpimg)%s+(%S+) ###'
+						if to then
+							funcMacros:insert{to, from}
+							lines:remove(i)
+						end
 					end
 				end
-			end
-			code = lines:concat'\n'
+				code = lines:concat'\n'
 
-			for _,kv in ipairs(funcMacros) do
-				local new, old = table.unpack(kv)
-				code = removeEnum(code, new..' = 0')
-			end
-
-			-- TODO autogen this from /usr/include/longnam.h
-			-- TODO TODO autogen all macro function mappings, not just this one
-			code = makeLibWrapper{
-				code = code,
-				preproc = preproc,
-				lib = 'cfitsio',
--- [===[ adding as funcs means upon first reference, it'll defer-load the target and replace it with the source
-				funcs = table{
-					'',
-				}:append(funcMacros:mapi(function(kv)
+				for _,kv in ipairs(funcMacros) do
 					local new, old = table.unpack(kv)
-					return '\t\t' .. new .. ' = function() return wrapper.' .. old .. ' end,'
-				end)),
---]===]
-				footerCode = table{
-					'-- macros',
-					'',
-				}
---[===[ adding as macros is a bad idea cuz the redirect will be permanent
-				:append(
-					funcMacros:mapi(function(kv)
-						local new, old = table.unpack(kv)
-						return 'wrapper.'..new .. ' = function(...) return wrapper.' .. old .. '(...) end'
-					end)
-				)
---]===]
-				:append{
-					'wrapper.CFITSIO_VERSION = "'..preproc.macros.CFITSIO_VERSION..'"',
-					--[[ using limits' def won't work until it gets its enums fixed...
-					'wrapper.LONGLONG_MAX = ffi.C.LLONG_MAX',
-					'wrapper.LONGLONG_MIN = ffi.C.LLONG_MIN',
-					--]]
-					-- [[ until then
-					'wrapper.LONGLONG_MAX = 0x7fffffffffffffffLL',
-					'wrapper.LONGLONG_MIN = -0x7fffffffffffffffLL-1',
-					--]]
-					'wrapper.FLOATNULLVALUE = -9.11912e-36',
-					'wrapper.DOUBLENULLVALUE = -9.1191291391491e-36',
-					"wrapper.fits_open_file = function(...) return wrapper.ffopentest(wrapper.CFITSIO_SONAME, ...) end",
-				}:concat'\n',
-			}
-			-- zlib libtiff libpng EGL fitsio
-			code = code:gsub(string.patescape'(void)', '()')
-			return code
-		end,
-	},
+					code = removeEnum(code, new..' = 0')
+				end
 
-	-- apt install libtiff-dev
-	-- also per-OS
-	-- depends: stddef.h stdint.h inttypes.h stdio.h stdarg.h
-	{
-		inc = '<tiffio.h>',
-		out = 'tiff.lua',
-		pkgconfig = 'libtiff-4',
-		--[[ someone somewhere is getting mixed up because of symlinks so ...
-		macroincs = {
-			'/usr/local/opt/libtiff/include/tiff.h',
-			'/usr/local/opt/libtiff/include/tiffconf.h',
-			'/usr/local/opt/libtiff/include/tiffvers.h',
+				-- TODO autogen this from /usr/include/longnam.h
+				-- TODO TODO autogen all macro function mappings, not just this one
+				code = makeLibWrapper{
+					code = code,
+					preproc = preproc,
+					lib = 'cfitsio',
+-- [===[ adding as funcs means upon first reference, it'll defer-load the target and replace it with the source
+					funcs = table{
+						'',
+					}:append(funcMacros:mapi(function(kv)
+						local new, old = table.unpack(kv)
+						return '\t\t' .. new .. ' = function() return wrapper.' .. old .. ' end,'
+					end)),
+--]===]
+					footerCode = table{
+						'-- macros',
+						'',
+					}
+--[===[ adding as macros is a bad idea cuz the redirect will be permanent
+					:append(
+						funcMacros:mapi(function(kv)
+							local new, old = table.unpack(kv)
+							return 'wrapper.'..new .. ' = function(...) return wrapper.' .. old .. '(...) end'
+						end)
+					)
+--]===]
+					:append{
+						'wrapper.CFITSIO_VERSION = "'..preproc.macros.CFITSIO_VERSION..'"',
+						--[[ using limits' def won't work until it gets its enums fixed...
+						'wrapper.LONGLONG_MAX = ffi.C.LLONG_MAX',
+						'wrapper.LONGLONG_MIN = ffi.C.LLONG_MIN',
+						--]]
+						-- [[ until then
+						'wrapper.LONGLONG_MAX = 0x7fffffffffffffffLL',
+						'wrapper.LONGLONG_MIN = -0x7fffffffffffffffLL-1',
+						--]]
+						'wrapper.FLOATNULLVALUE = -9.11912e-36',
+						'wrapper.DOUBLENULLVALUE = -9.1191291391491e-36',
+						"wrapper.fits_open_file = function(...) return wrapper.ffopentest(wrapper.CFITSIO_SONAME, ...) end",
+					}:concat'\n',
+				}
+				-- zlib libtiff libpng EGL fitsio
+				code = safegsub(code, string.patescape'(void)', '()')
+				return code
+			end,
 		},
-		--]]
-		--[[ can we fix it with include search paths? no...
-		macroincs = {
-			'<tiffconf.h>',
-		},
-		--]]
-		final = function(code, preproc)
-			for _,k in ipairs{'int8', 'uint8', 'int16', 'uint16', 'int32', 'uint32', 'int64', 'uint64'} do
-				code = safegsub(code, string.patescape('typedef '..k..'_t '..k..' __attribute__((deprecated));'), '')
-			end
-			for _,k in ipairs{
-				'U_NEU', 'V_NEU', 'UVSCALE'
-				-- unnecessary:
-				--'D65_X0', 'D65_Y0', 'D65_Z0', 'D50_X0', 'D50_Y0', 'D50_Z0',
-			} do
-				code = removeEnum(code, k..' = %S+')
-			end
-			local code = makeLibWrapper{
-				code = code,
-				preproc = preproc,
-				lib = 'tiff',
-				funcs = ffi.os ~= 'Windows' and {
+
+		-- apt install libtiff-dev
+		-- also per-OS
+		-- depends: stddef.h stdint.h inttypes.h stdio.h stdarg.h
+		{
+			inc = '<tiffio.h>',
+			out = 'tiff.lua',
+			pkgconfig = 'libtiff-4',
+			--[[ someone somewhere is getting mixed up because of symlinks so ...
+			macroincs = {
+				'/usr/local/opt/libtiff/include/tiff.h',
+				'/usr/local/opt/libtiff/include/tiffconf.h',
+				'/usr/local/opt/libtiff/include/tiffvers.h',
+			},
+			--]]
+			--[[ can we fix it with include search paths? no...
+			macroincs = {
+				'<tiffconf.h>',
+			},
+			--]]
+			final = function(code, preproc)
+				for _,k in ipairs{'int8', 'uint8', 'int16', 'uint16', 'int32', 'uint32', 'int64', 'uint64'} do
+					code = safegsub(code, string.patescape('typedef '..k..'_t '..k..' __attribute__((deprecated));'), '')
+				end
+				for _,k in ipairs{
+					'U_NEU', 'V_NEU', 'UVSCALE'
+					-- unnecessary:
+					--'D65_X0', 'D65_Y0', 'D65_Z0', 'D50_X0', 'D50_Y0', 'D50_Z0',
+				} do
+					code = removeEnum(code, k..' = %S+')
+				end
+				local code = makeLibWrapper{
+					code = code,
+					preproc = preproc,
+					lib = 'tiff',
+					funcs = ffi.os ~= 'Windows' and {
 [=[
 
 		-- Windows-only ...
 		TIFFOpenW = [[TIFF *TIFFOpenW(wchar_t const *, char const *);]],
 		TIFFOpenWExt = [[TIFF *TIFFOpenWExt(wchar_t const *, char const *, TIFFOpenOptions *opts);]],]=]
-				} or nil,
-				footerCode = table{
-					'-- macros',
-					'',
-					}:append(table{
-							'TIFFLIB_VERSION_STR', 'TIFFLIB_VERSION_STR_MAJ_MIN_MIC', 'D65_X0', 'D65_Y0', 'D65_Z0', 'D50_X0', 'D50_Y0', 'D50_Z0', 'U_NEU', 'V_NEU', 'UVSCALE',
-						}:mapi(function(k,_,t)
-							local v = preproc.macros[k]
-							if v then
-								v = v:match'^%((.*)F%)$' or v	-- get rid of those ( ... F) floats
-								return 'wrapper.'..k..' = '..v, #t+1
-							end
-						end)
-					):concat'\n'..'\n',
-			}
-			-- zlib libtiff libpng EGL
-			code = code:gsub(string.patescape'(void)', '()')
-			return code
-		end,
-	},
+					} or nil,
+					footerCode = table{
+						'-- macros',
+						'',
+						}:append(table{
+								'TIFFLIB_VERSION_STR', 'TIFFLIB_VERSION_STR_MAJ_MIN_MIC', 'D65_X0', 'D65_Y0', 'D65_Z0', 'D50_X0', 'D50_Y0', 'D50_Z0', 'U_NEU', 'V_NEU', 'UVSCALE',
+							}:mapi(function(k,_,t)
+								local v = preproc.macros[k]
+								if v then
+									v = v:match'^%((.*)F%)$' or v	-- get rid of those ( ... F) floats
+									return 'wrapper.'..k..' = '..v, #t+1
+								end
+							end)
+						):concat'\n'..'\n',
+				}
+				-- zlib libtiff libpng EGL
+				code = safegsub(code, string.patescape'(void)', '()')
+				return code
+			end,
+		},
 
-	{
-		inc = '<lua.h>',
-		moreincs = {'<lualib.h>', '<lauxlib.h>'},
-		out = 'lua.lua',
-		pkgconfig = 'lua',
-		final = function(code)
-			code = [[
+		{
+			inc = '<lua.h>',
+			moreincs = {'<lualib.h>', '<lauxlib.h>'},
+			out = 'lua.lua',
+			pkgconfig = 'lua',
+			final = function(code)
+				code = [[
 ]] .. code .. [[
 return require 'ffi.load' 'lua'
 ]]
-			return code
-		end,
-	},
+				return code
+			end,
+		},
 
-	{
-		-- ok I either need to have my macros smart-detect when their value is only used for types
-		-- or someone needs to rewrite the zlib.h and zconf.h to use `typedef` instead of `#define` when specifying types.
-		-- until either happens, I'm copying the zlib locally and changing its `#define` types to `typedef`.
-		inc = '"zlib/zlib.h"',
-		out = 'zlib.lua',
-		includedirs = {'.'},
-		final = function(code, preproc)
-			local code = makeLibWrapper{
-				code = code,
-				lib = 'z',
-				-- add this beneath this top "local ffi = require 'ffi'"
-				headerCode = [[
+		{
+			-- ok I either need to have my macros smart-detect when their value is only used for types
+			-- or someone needs to rewrite the zlib.h and zconf.h to use `typedef` instead of `#define` when specifying types.
+			-- until either happens, I'm copying the zlib locally and changing its `#define` types to `typedef`.
+			inc = '"zlib/zlib.h"',
+			out = 'zlib.lua',
+			includedirs = {'.'},
+			final = function(code, preproc)
+				local code = makeLibWrapper{
+					code = code,
+					lib = 'z',
+					-- add this beneath this top "local ffi = require 'ffi'"
+					headerCode = [[
 local assert = require 'ext.assert'
 ]],
-				-- add extra type stuff here
-				requires = table{
-					[=[
+					-- add extra type stuff here
+					requires = table{
+						[=[
 
 if ffi.os == 'Linux' then
 	require 'ffi.req' 'c.unistd'
@@ -397,13 +401,13 @@ typedef long z_off_t;
 typedef int64_t z_off64_t;
 ]]
 end]=],
-				},
-				-- Then add our windows-only symbol if we're not on windows ...
-				funcs = ffi.os ~= 'Window' and {
-					[=[		gzopen_w = [[gzFile gzopen_w(wchar_t const *path, char const *mode);]], -- Windows-only]=],
-				},
-				-- ... then add some macros onto the end manually
-				footerCode = [=[
+					},
+					-- Then add our windows-only symbol if we're not on windows ...
+					funcs = ffi.os ~= 'Window' and {
+						[=[		gzopen_w = [[gzFile gzopen_w(wchar_t const *path, char const *mode);]], -- Windows-only]=],
+					},
+					-- ... then add some macros onto the end manually
+					footerCode = [=[
 -- macros
 
 wrapper.ZLIB_VERSION = ]=]
@@ -502,10 +506,11 @@ function wrapper.uncompressLua(srcAndLen)
 	return ffi.string(dst, dstLen[0])
 end
 ]=],
-			}
-			-- zlib libtiff libpng EGL
-			code = code:gsub(string.patescape'(void)', '()')
-			return code
-		end,
-	},
-}end
+				}
+				-- zlib libtiff libpng EGL
+				code = safegsub(code, string.patescape'(void)', '()')
+				return code
+			end,
+		},
+	}
+end
