@@ -35,6 +35,14 @@ files = {
 	"tests/test.png",
 	"tests/test_png_custom_chunks.lua",
 }
+if ffi.os == "Android" and ffi.arch == "x64" then
+	table.append(files, {
+		"bin/Android/x64/libjpeg.so",
+		"bin/Android/x64/libpng.so",
+		"bin/Android/x64/libtiff.so",
+		"bin/Android/x64/libz.so",
+	})
+end
 if ffi.os == "Linux" and ffi.arch == "x64" then
 	table.append(files, {
 		"bin/Linux/x64/libjpeg.so",
