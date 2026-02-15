@@ -20,7 +20,7 @@ elseif ffi.os == 'OSX' or ffi.os == 'Android' then
 typedef off_t z_off_t;
 typedef z_off_t z_off64_t;
 ]]
-elseif ffi.os == 'Windows' then
+else -- if ffi.os == 'Windows' then -- should this be the unknown os default?
 	ffi.cdef[[
 typedef long z_off_t;
 typedef int64_t z_off64_t;
@@ -290,7 +290,7 @@ function wrapper.compressLua(src)
 	assert.type(src, 'string')
 	local srcLen = ffi.new'uint64_t[1]'
 	srcLen[0] = #src
-	if ffi.sizeof'uLongf' <= 4 and srcLen[0] >= 4294967296ULL then
+	if ffi.sizeof'uLongf' <= 4 and srcLen[0] >= 4294967296 then
 		error("overflow")
 	end
 	local dstLen = ffi.new('uLongf[1]', wrapper.compressBound(ffi.cast('uLongf', srcLen[0])))
@@ -318,7 +318,7 @@ function wrapper.uncompressLua(srcAndLen)
 	for i=7,0,-1 do
 		dstLen[0] = bit.bor(bit.lshift(dstLen[0], 8), dstLenP[i])
 	end
-	if ffi.sizeof'uLongf' <= 4 and dstLen[0] >= 4294967296ULL then
+	if ffi.sizeof'uLongf' <= 4 and dstLen[0] >= 4294967296 then
 		error("overflow")
 	end
 
