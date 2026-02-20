@@ -22,7 +22,7 @@ local unsigned_short = ffi.typeof'unsigned short'
 local int = ffi.typeof'int'
 local signed_int = ffi.typeof'signed int'
 local unsigned_int = ffi.typeof'unsigned int'
-local int1 = ffi.typeof'int[1]'
+local int_1 = ffi.typeof'int[1]'
 local long = ffi.typeof'long'
 local signed_long = ffi.typeof'signed long'
 local unsigned_long = ffi.typeof'unsigned long'
@@ -45,12 +45,12 @@ function FITSLoader:load(filename)
 	assert(filename, "expected filename")
 	return select(2, assert(xpcall(function()
 		local fitsFilePtr = fitsfile_p_1()
-		local status = int1()
+		local status = int_1()
 		status[0] = 0
 		fits.ffopen(fitsFilePtr, filename, fits.READONLY, status)
 		assert.eq(status[0], 0, "ffopen failed")
 
-		local bitPixType = int1()
+		local bitPixType = int_1()
 		fits.ffgidt(fitsFilePtr[0], bitPixType, status)
 		assert.eq(status[0], 0, "ffgidt failed")
 
@@ -77,10 +77,10 @@ function FITSLoader:load(filename)
 
 		local format_arr = ffi.typeof('$[?]', format)
 
-		local dim = int1()
+		local dim = int_1()
 		fits.ffgidm(fitsFilePtr[0], dim, status)
 		assert.eq(status[0], 0, "ffgidm failed")
-		assert.eq(dim[0], 0, "image is an unsupported dimension")
+		assert.eq(dim[0], 3, "image is an unsupported dimension")
 
 		local fpixel = long_int_3()
 		for i=0,dim[0]-1 do
@@ -144,7 +144,7 @@ function FITSLoader:save(args)
 
 	if path(filename):exists() then path(filename):remove() end
 
-	local status = int1()
+	local status = int_1()
 	local fitsFilePtr = fitsfile_p_1()
 
 	fits.ffinit(fitsFilePtr, filename, status)
