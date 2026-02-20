@@ -75,7 +75,7 @@ function FITSLoader:load(filename)
 			error("image is an unsupported FITS type " .. bitPixType[0])
 		end
 
-		local format-arr = ffi.typeof('$[?]', format)
+		local format_arr = ffi.typeof('$[?]', format)
 
 		local dim = int1()
 		fits.ffgidm(fitsFilePtr[0], dim, status)
@@ -144,16 +144,13 @@ function FITSLoader:save(args)
 
 	if path(filename):exists() then path(filename):remove() end
 
-	local status = gcmem.new('int', 1)
-	status[0] = 0
-
-	local fitsFilePtr = gcmem.new('fitsfile *', 1)
-	fitsFilePtr[0] = nil
+	local status = int1()
+	local fitsFilePtr = fitsfile_p_1()
 
 	fits.ffinit(fitsFilePtr, filename, status)
 	assert.eq(status[0], 0, "ffinit failed")
 
-	local sizes = gcmem.new('long', 3)
+	local sizes = long_int_3()
 	sizes[0] = width
 	sizes[1] = height
 	sizes[2] = channels
@@ -164,7 +161,7 @@ function FITSLoader:save(args)
 	status[0] = fits.ffphps(fitsFilePtr[0], bitPixType, 3, sizes, status)
 	assert.eq(status[0], 0, "ffphps failed")
 
-	local firstpix = gcmem.new('long int', 3)
+	local firstpix = long_int_3()
 	for i=0,2 do
 		firstpix[i] = 1
 	end
