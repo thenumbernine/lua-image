@@ -48,7 +48,15 @@ function FITSLoader:load(filename)
 		local status = int_1()
 		status[0] = 0
 		fits.ffopen(fitsFilePtr, filename, fits.READONLY, status)
-		assert.eq(status[0], 0, "ffopen failed")
+		if status[0] ~= 0 then
+			local msg = "ffopen failed with status "..tostring(status[0])
+			for k,v in pairs(fits) do
+				if v == status[0] then
+					msg = msg .. ' '..k
+				end
+			end
+			error(msg)
+		end
 
 		local bitPixType = int_1()
 		fits.ffgidt(fitsFilePtr[0], bitPixType, status)

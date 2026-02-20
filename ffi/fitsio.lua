@@ -160,7 +160,7 @@ typedef struct {
 local wrapper
 wrapper = require 'ffi.libwrapper'{
 	lib = require 'ffi.load' 'cfitsio',
-	defs = {
+	init = {
 		-- enums
 
 		CFITSIO_MICRO = 1,
@@ -425,7 +425,8 @@ wrapper = require 'ffi.libwrapper'{
 		NGP_EOF = 367,
 		NGP_BAD_ARG = 368,
 		NGP_TOKEN_NOT_EXPECT = 369,
-
+	},
+	defs = {
 		-- functions
 
 		fits_read_wcstab = [[int fits_read_wcstab(fitsfile *fptr, int nwtb, wtbarr *wtb, int *status);]],
