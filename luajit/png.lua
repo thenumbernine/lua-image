@@ -128,7 +128,7 @@ local function pngLoadBody(args)
 --DEBUG(@5):print('png_create_read_struct', PNGLoader.libpngVersion, nil, errorCallback, warningCallback)
 	local png_ptr = png.png_create_read_struct(PNGLoader.libpngVersion, nil, errorCallback, warningCallback)
 --DEBUG(@5):print('...got', png_ptr)
-	if png_ptr == ffi.null then
+	if png_ptr == nil then
 		error'png_create_read_struct failed'
 	end
 
@@ -138,7 +138,7 @@ local function pngLoadBody(args)
 --DEBUG(@5):print('png_create_info_struct', png_ptr)
 	local info_ptr =  png.png_create_info_struct(png_ptr)
 --DEBUG(@5):print('...got', info_ptr)
-	if info_ptr == ffi.null then
+	if info_ptr == nil then
 		error'png_create_info_struct failed'
 	end
 
@@ -292,7 +292,7 @@ local function pngLoadBody(args)
 				pal_pp[0][i].blue,
 			}
 			palette[i+1] = entry
-			if transparencyAlpha[0] ~= ffi.null then
+			if transparencyAlpha[0] ~= nil then
 				entry[4] = i < numTransparent[0]
 					and transparencyAlpha[0][i]
 					or 255
@@ -308,9 +308,9 @@ local function pngLoadBody(args)
 --DEBUG(@5):print('png_get_tRNS', png_ptr, info_ptr, transparencyAlpha, numTransparent, transparencyColor)
 		if 0 == png.png_get_tRNS(png_ptr, info_ptr, transparencyAlpha, numTransparent, transparencyColor) then
 --DEBUG(@5):print('...failed, assigning to nil')
-			transparencyColor[0] = ffi.null
+			transparencyColor[0] = nil
 		end
---DEBUG(@5):if transparencyColor[0] ~= ffi.null then
+--DEBUG(@5):if transparencyColor[0] ~= nil then
 --DEBUG(@5):	print('transparencyColor', transparencyColor[0].index, transparencyColor[0].red, transparencyColor[0].green, transparencyColor[0].blue, transparencyColor[0].gray)
 --DEBUG(@5):end
 		-- TODO HERE only for the single color set in transparencyColor
@@ -392,11 +392,11 @@ local function pngLoadBody(args)
 	local profileLen = uint32_t_1()
 	if 0 ~= png.png_get_iCCP(png_ptr, info_ptr, name, compressionType, profile, profileLen) then
 		result.iccProfile = {
-			name = name[0] ~= ffi.null and ffi.string(name[0]) or nil,
+			name = name[0] ~= nil and ffi.string(name[0]) or nil,
 			-- "must always be set to PNG_COMPRESSION_TYPE_BASE"
 			compressionType = compressionType[0],
 			-- "International Color Consortium color profile"
-			profile = profile[0] ~= ffi.null and ffi.string(profile[0], profileLen[0]) or nil,
+			profile = profile[0] ~= nil and ffi.string(profile[0], profileLen[0]) or nil,
 		}
 	end
 
@@ -409,12 +409,12 @@ local function pngLoadBody(args)
 			local text = textPtr[0][i]
 			return {
 				compression = text.compression,
-				key = text.key ~= ffi.null and ffi.string(text.key) or nil,
-				text = text.text ~= ffi.null and ffi.string(text.text) or nil,--, text.text_length),
+				key = text.key ~= nil and ffi.string(text.key) or nil,
+				text = text.text ~= nil and ffi.string(text.text) or nil,--, text.text_length),
 				text_length = text.text_length,	-- why is this needed? is our string null-term?
 				itxt_length = text.itxt_length,	-- how about this? just to show compression size? or for reading compressed data?
-				lang = text.lang ~= ffi.null and ffi.string(text.lang) or nil,
-				lang_key = text.lang_key ~= ffi.null and ffi.string(text.lang_key) or nil,
+				lang = text.lang ~= nil and ffi.string(text.lang) or nil,
+				lang_key = text.lang_key ~= nil and ffi.string(text.lang_key) or nil,
 			}
 		end)
 	end
@@ -474,7 +474,7 @@ local function pngLoadBody(args)
 		result.suggestedPalettes = range(0,numSuggestedPalettes-1):mapi(function(i)
 			local splt = spltEntries[0][i]
 			return {
-				name = splt.name ~= ffi.null and ffi.string(splt.name) or nil,
+				name = splt.name ~= nil and ffi.string(splt.name) or nil,
 				depth = splt.depth,
 				entries = range(0,splt.nentries-1):mapi(function(j)
 					local entry = splt.entries[j]
@@ -559,7 +559,7 @@ function PNGLoader:load(filename)
 --DEBUG(@5):print('fopen', filename, 'rb')
 		local fp = stdio.fopen(filename, 'rb')
 --DEBUG(@5):print('...got', fp)
-		if fp == ffi.null then
+		if fp == nil then
 			error'failed to open file for reading'
 		end
 
@@ -610,7 +610,7 @@ function PNGLoader:loadMem(data)
 		)
 --DEBUG(@5): print('readCallback copy from', i)
 			local dataPtr = ffi.cast(uint8_t_p, png.png_get_io_ptr(png_ptr))
---DEBUG: assert.ne(dataPtr, ffi.null)
+--DEBUG: assert.ne(dataPtr, nil)
 --DEBUG: assert.le(i+size, #data)
 			ffi.copy(dst, dataPtr+i, size)
 			i = i + size
@@ -652,20 +652,20 @@ function PNGLoader:save(args)
 	local info_pp = png_infop_1()
 	local res, err = xpcall(function()
 		fp = stdio.fopen(filename, 'wb')
-		if fp == ffi.null then
+		if fp == nil then
 			fp = nil
 			error("failed to open file "..filename.." for writing")
 		end
 
 		-- initialize stuff
 		local png_ptr = png.png_create_write_struct(self.libpngVersion, nil, nil, nil)
-		if png_ptr == ffi.null then
+		if png_ptr == nil then
 			error "[write_png_file] png_create_write_struct failed"
 		end
 		png_pp[0] = png_ptr
 
 		local info_ptr = png.png_create_info_struct(png_ptr)
-		if info_ptr == ffi.null then
+		if info_ptr == nil then
 			error("[write_png_file] png_create_info_struct failed")
 		end
 		info_pp[0] = info_ptr
@@ -762,7 +762,7 @@ function PNGLoader:save(args)
 	end)
 
 	-- cleanup
-	if png_pp[0] ~= ffi.null then
+	if png_pp[0] ~= nil then
 		-- TODO if info_pp[0] == null then do I have to pass nil instead of info_pp ?
 		png.png_destroy_write_struct(png_pp, info_pp)
 	end
