@@ -787,7 +787,7 @@ function Image:resize(newx, newy, method)
 	newx = math.floor(newx)
 	newy = math.floor(newy)
 	method = method or 'nearest'	-- TODO use this
-	return Image(newx, newy, self.channels, self.format, function(x,y)
+	local result = Image(newx, newy, self.channels, self.format, function(x,y)
 		local sxmin = math.floor(x*self.width/newx)
 		local sxmax = math.floor((x+1)*self.width/newx)
 		local symin = math.floor(y*self.height/newy)
@@ -810,6 +810,8 @@ function Image:resize(newx, newy, method)
 		end
 		return table.unpack(pixel)
 	end)
+	result.palette = self.palette	-- preserve palette if present
+	return result
 end
 
 
