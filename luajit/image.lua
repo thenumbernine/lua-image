@@ -249,11 +249,13 @@ function Image:save(filename, ...)
 	local loader = getLoaderForFilename(filename)
 
 	-- may or may not be the same object ...
+	-- TODO how about pass 'filename' first and then image(s) / all ... args?
+	--  and then rely on the save() function to do its own preparing
 	local converted = loader:prepareImage(self)
 
 	loader:save(table(converted, {
 		filename = filename,
-	}))
+	}), ...)
 
 	-- returns self solely for chaining commands
 	return self

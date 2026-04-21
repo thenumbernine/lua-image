@@ -36,16 +36,18 @@ typedef struct GifImageDesc {
 	_Bool Interlace;
 	ColorMapObject *ColorMap;
 } GifImageDesc;
+
+enum { CONTINUE_EXT_FUNC_CODE = 0 };
+enum { COMMENT_EXT_FUNC_CODE = 254 };
+enum { GRAPHICS_EXT_FUNC_CODE = 249 };
+enum { PLAINTEXT_EXT_FUNC_CODE = 1 };
+enum { APPLICATION_EXT_FUNC_CODE = 255 };
 typedef struct ExtensionBlock {
 	int ByteCount;
 	GifByteType *Bytes;
 	int Function;
-	enum { CONTINUE_EXT_FUNC_CODE = 0 };
-	enum { COMMENT_EXT_FUNC_CODE = 254 };
-	enum { GRAPHICS_EXT_FUNC_CODE = 249 };
-	enum { PLAINTEXT_EXT_FUNC_CODE = 1 };
-	enum { APPLICATION_EXT_FUNC_CODE = 255 };
 } ExtensionBlock;
+
 typedef struct SavedImage {
 	GifImageDesc ImageDesc;
 	GifByteType *RasterBits;
@@ -67,19 +69,27 @@ typedef struct GifFileType {
 	void *UserData;
 	void *Private;
 } GifFileType;
-typedef enum { UNDEFINED_RECORD_TYPE, SCREEN_DESC_RECORD_TYPE, IMAGE_DESC_RECORD_TYPE, EXTENSION_RECORD_TYPE, TERMINATE_RECORD_TYPE } GifRecordType;
+
+typedef enum {
+	UNDEFINED_RECORD_TYPE,
+	SCREEN_DESC_RECORD_TYPE,
+	IMAGE_DESC_RECORD_TYPE,
+	EXTENSION_RECORD_TYPE,
+	TERMINATE_RECORD_TYPE
+} GifRecordType;
 typedef int (*InputFunc)(GifFileType *, GifByteType *, int);
 typedef int (*OutputFunc)(GifFileType *, const GifByteType *, int);
+
+enum { DISPOSAL_UNSPECIFIED = 0 };
+enum { DISPOSE_DO_NOT = 1 };
+enum { DISPOSE_BACKGROUND = 2 };
+enum { DISPOSE_PREVIOUS = 3 };
+enum { NO_TRANSPARENT_COLOR = -1 };
 typedef struct GraphicsControlBlock {
 	int DisposalMode;
-	enum { DISPOSAL_UNSPECIFIED = 0 };
-	enum { DISPOSE_DO_NOT = 1 };
-	enum { DISPOSE_BACKGROUND = 2 };
-	enum { DISPOSE_PREVIOUS = 3 };
 	_Bool UserInputFlag;
 	int DelayTime;
 	int TransparentColor;
-	enum { NO_TRANSPARENT_COLOR = -1 };
 } GraphicsControlBlock;
 GifFileType *EGifOpenFileName(const char *GifFileName, const _Bool GifTestExistence, int *Error);
 GifFileType *EGifOpenFileHandle(const int GifFileHandle, int *Error);
