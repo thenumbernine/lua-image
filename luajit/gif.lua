@@ -118,7 +118,6 @@ function GIFLoader:save(...)
 	local palette = assert.index(indexedMasterImg, 'palette')
 	local bitsPerPixel = 8
 	assert.le(#palette, bit.lshift(1, bitsPerPixel), "I've hard-coded the bpp at 8, and your palette uses more than 8, so you will have to increase the limit and verify that it works properly")
-print('palette', require 'ext.tolua'(palette))
 
 	assert.eq(indexedMasterImg:getBufferSize() % numFrames, 0)
 	local indexedImageSize = indexedMasterImg:getBufferSize() / numFrames
