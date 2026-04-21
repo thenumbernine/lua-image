@@ -31,36 +31,27 @@ function GIFLoader:load(filename, imageIndex)
 
 	imageIndex = imageIndex % gifFile[0].ImageCount
 
-	local --[[SavedImage const &]] saved = gifFile[0].SavedImages[imageIndex];
+	local --[[SavedImage const &]] saved = gifFile[0].SavedImages[imageIndex]
 	local --[[GifImageDesc const &]] desc = saved.ImageDesc
 	local --[[ColorMapObject const * const]] colorMap = desc.ColorMap ~= nil and desc.ColorMap or commonMap
 
+	local palette = range(0,colorMap.ColorCount-1):mapi(function(i)
+		local c = colorMap.Colors[i]
+		return {c.Red, c.Green, c.Blue}
+	end)
+
 	local width = desc.Width
 	local height = desc.Height
-	local channels = 3
-	local buffer = uint8_t_arr(width * height * channels)
-
-	for v=0,height-1 do
-		for u=0,width-1 do
-			local c = saved.RasterBits[v * width + u]
-			if colorMap ~= nil then
-				local --[[GifColorType]] rgb = colorMap[0].Colors[c]
-				local dstindex = channels * (u + width * v)
-				buffer[0 + dstindex] = rgb.Red
-				buffer[1 + dstindex] = rgb.Green
-				buffer[2 + dstindex] = rgb.Blue
-			else
-				error("Can't decode this gif")	--truecolor gif? greyscale? no color map...
-			end
-		end
-	end
+	local buffer = uint8_t_arr(width * height)
+	ffi.copy(buffer, saved.RasterBits, width * height)
 
 	return {
 		buffer = buffer,
 		width = width,
 		height = height,
-		channels = channels,
+		channels = 1,
 		format = uint8_t,
+		palette = palette,
 	}
 end
 

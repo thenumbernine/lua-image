@@ -62,38 +62,40 @@ local function packptr(n, ptr, value, ...)
 end
 
 -- TODO .format -> .type or .ctype?
-function Image:init(width,height,channels,format,generator)
-	channels = channels or 4
-	format = ffi.typeof(format or double)
-	if type(width) == 'string' then
-		local filename = width
+function Image:init(...)
+	if type(...) == 'string' then
+		local filename = ...
 		local loader = getLoaderForFilename(filename)
-		local result = loader:load(filename)
+		local result = loader:load(...)
 		for k,v in pairs(result) do
 			self[k] = v
 		end
-	else
-		local format_arr = ffi.typeof('$[?]', format)
-		self.buffer = format_arr(width * height * channels)
-		self.width = width
-		self.height = height
-		self.channels = channels
-		self.format = format
-		if type(generator) == 'function' then
-			for y=0,self.height-1 do
-				for x=0,self.width-1 do
-					-- 'unpackptr' is found in /gl/get.lua, maybe I should put them both somewhere else ...
-					packptr(
-						self.channels,
-						self.buffer + self.channels * (x + self.width * y),
-						generator(x,y)
-					)
-				end
+		return
+	end
+
+	local width, height, channels, format, generator = ...
+	channels = channels or 4
+	format = ffi.typeof(format or double)
+	local format_arr = ffi.typeof('$[?]', format)
+	self.buffer = format_arr(width * height * channels)
+	self.width = width
+	self.height = height
+	self.channels = channels
+	self.format = format
+	if type(generator) == 'function' then
+		for y=0,self.height-1 do
+			for x=0,self.width-1 do
+				-- 'unpackptr' is found in /gl/get.lua, maybe I should put them both somewhere else ...
+				packptr(
+					self.channels,
+					self.buffer + self.channels * (x + self.width * y),
+					generator(x,y)
+				)
 			end
-		elseif type(generator) == 'table' then
-			for i=0,self.width*self.height*self.channels-1 do
-				self.buffer[i] = generator[i+1]
-			end
+		end
+	elseif type(generator) == 'table' then
+		for i=0,self.width*self.height*self.channels-1 do
+			self.buffer[i] = generator[i+1]
 		end
 	end
 end
