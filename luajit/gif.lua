@@ -151,20 +151,31 @@ function GIFLoader:save(...)
 	gif.EGifPutScreenDesc(fp, width, height, bitsPerPixel, 0, gifPal)
 
 	gif.EGifPutExtensionLeader(fp, gif.APPLICATION_EXT_FUNC_CODE)
+
 	local loopBlock = 'NETSCAPE2.0'
 	gif.EGifPutExtensionBlock(fp, #loopBlock, loopBlock)
+
 	local loopData = string.char(1, 0, 0)	-- 1 = loop-count sub-block, 0,0 = infinite
+	assert.len(loopData, 3)
 	gif.EGifPutExtensionBlock(fp, #loopData, loopData)
 	gif.EGifPutExtensionTrailer(fp)
+
+	local frameDelay = args.frameDelay and args.frameDelay/100 or 8	-- in centi-seconds
 
 	local srcp = indexedMasterImg.buffer + 0
 	for frame=1,numFrames do
 		local gcb = GraphicsControlBlock()
-		gcb.DisposalMode = gif.DISPOSE_DO_NOT	-- gif.DISPOSAL_UNSPECIFIED,
+		--gcb.DisposalMode = gif.DISPOSE_DO_NOT
+		gcb.DisposalMode = gif.DISPOSAL_UNSPECIFIED
 		gcb.UserInputFlag = false
-		gcb.DelayTime = 83	-- ms
+		gcb.DelayTime = frameDelay
 		gcb.TransparentColor = gif.NO_TRANSPARENT_COLOR
-		gif.EGifGCBToSavedExtension(gcb, fp, frame-1)
+
+        local gcb_bytes = ffi.new'uint8_t[4]'
+        gif.EGifGCBToExtension(gcb, gcb_bytes)	-- why does this function exist?
+        gif.EGifPutExtension(fp, gif.GRAPHICS_EXT_FUNC_CODE, 4, gcb_bytes)
+
+		--gif.EGifGCBToSavedExtension(gcb, fp, frame-1)
 		gif.EGifPutImageDesc(fp, 0, 0, width, height, false, nil)
 		for i=0,height-1 do
 			gif.EGifPutLine(fp, srcp, rowsize)
