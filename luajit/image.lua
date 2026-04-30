@@ -76,7 +76,7 @@ function Image:init(...)
 
 	if filename then
 		local loader = getLoaderForFilename(filename)
-		local result = loader:load(arg)
+		local result = loader:load(filename)
 		for k,v in pairs(result) do
 			self[k] = v
 		end
