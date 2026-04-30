@@ -61,12 +61,22 @@ local function packptr(n, ptr, value, ...)
 	return packptr(n-1, ptr+1, ...)
 end
 
+-- path is a singleton, so get it's class
+local Path = getmetatable(path)
+
 -- TODO .format -> .type or .ctype?
 function Image:init(...)
-	if type(...) == 'string' then
-		local filename = ...
+	local arg = ...
+	local filename
+	if type(arg) == 'string' then
+		filename = arg
+	elseif Path:isa(arg) then
+		filename = arg.path
+	end
+
+	if filename then
 		local loader = getLoaderForFilename(filename)
-		local result = loader:load(...)
+		local result = loader:load(arg)
 		for k,v in pairs(result) do
 			self[k] = v
 		end
@@ -245,6 +255,7 @@ function Image:clamp(min,max)
 end
 
 function Image:save(filename, ...)
+	if Path:isa(filename) then filename = filename.path end
 
 	local loader = getLoaderForFilename(filename)
 
