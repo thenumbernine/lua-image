@@ -37,7 +37,7 @@ files = {
 	"tests/test.png",
 	"tests/test_png_custom_chunks.lua",
 }
-if ffi.os == "Android" and ffi.arch == "arm" then
+if targetOS == "Android" and targetArch == "arm" then
 	table.append(files, {
 		"bin/Android/arm/libjpeg.so",
 		"bin/Android/arm/libpng.so",
@@ -45,7 +45,7 @@ if ffi.os == "Android" and ffi.arch == "arm" then
 		"bin/Android/arm/libz.so",
 	})
 end
-if ffi.os == "Linux" and ffi.arch == "x64" then
+if targetOS == "Linux" and targetArch == "x64" then
 	table.append(files, {
 		"bin/Linux/x64/libjpeg.so",
 		"bin/Linux/x64/libpng.so",
@@ -53,13 +53,13 @@ if ffi.os == "Linux" and ffi.arch == "x64" then
 		"bin/Linux/x64/libz.so",
 	})
 end
-if ffi.os == "OSX" and ffi.arch == "x64" then
+if targetOS == "OSX" and targetArch == "x64" then
 	table.append(files, {
 		"bin/OSX/x64/libpng.dylib",
 		"bin/OSX/x64/libtiff.dylib",
 	})
 end
-if ffi.os == "Windows" and ffi.arch == "x64" then
+if targetOS == "Windows" and targetArch == "x64" then
 	table.append(files, {
 		"bin/Windows/x64/cfitsio.dll",
 		"bin/Windows/x64/jpeg.dll",
