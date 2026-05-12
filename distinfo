@@ -3,6 +3,8 @@
 --------------------------------------------
 
 name = "image"
+git = "https://github.com/thenumbernine/lua-image"
+
 files = {
 	"README.md",
 	"distinfo",
@@ -35,12 +37,12 @@ files = {
 	"tests/test.png",
 	"tests/test_png_custom_chunks.lua",
 }
-if ffi.os == "Android" and ffi.arch == "x64" then
+if ffi.os == "Android" and ffi.arch == "arm" then
 	table.append(files, {
-		"bin/Android/x64/libjpeg.so",
-		"bin/Android/x64/libpng.so",
-		"bin/Android/x64/libtiff.so",
-		"bin/Android/x64/libz.so",
+		"bin/Android/arm/libjpeg.so",
+		"bin/Android/arm/libpng.so",
+		"bin/Android/arm/libtiff.so",
+		"bin/Android/arm/libz.so",
 	})
 end
 if ffi.os == "Linux" and ffi.arch == "x64" then
@@ -71,8 +73,8 @@ deps = {
 	"ext",
 	"ffi",
 	"sdl",
-	"stl",
 	"solver",	-- TODO remove this / make it optional / only when externally specified?
+	"stl",
 	"vec-ffi",
 }
 
