@@ -45,8 +45,17 @@ if targetOS == "Android" and targetArch == "arm" then
 		"bin/Android/arm/libz.so",
 	})
 end
+if targetOS == "Android" and targetArch == "arm64" then
+	table.append(files, {
+		"bin/Android/arm64/libjpeg.so",
+		"bin/Android/arm64/libpng.so",
+		"bin/Android/arm64/libtiff.so",
+		"bin/Android/arm64/libz.so",
+	})
+end
 if targetOS == "Linux" and targetArch == "x64" then
 	table.append(files, {
+		"bin/Linux/x64/libgif.so",
 		"bin/Linux/x64/libjpeg.so",
 		"bin/Linux/x64/libpng.so",
 		"bin/Linux/x64/libtiff.so",
