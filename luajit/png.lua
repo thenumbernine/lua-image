@@ -132,11 +132,13 @@ local function pngLoadBody(args)
 		error'png_create_read_struct failed'
 	end
 
+	png.png_set_chunk_malloc_max(png_ptr, 0)	-- 0 == unlimited, but if PNG_MAX_MALLOC_64K is set then that will just go to 64k...
+
 	local png_pp = png_structp_1()
 	png_pp[0] = png_ptr
 
 --DEBUG(@5):print('png_create_info_struct', png_ptr)
-	local info_ptr =  png.png_create_info_struct(png_ptr)
+	local info_ptr = png.png_create_info_struct(png_ptr)
 --DEBUG(@5):print('...got', info_ptr)
 	if info_ptr == nil then
 		error'png_create_info_struct failed'
@@ -663,6 +665,8 @@ function PNGLoader:save(args)
 			error "[write_png_file] png_create_write_struct failed"
 		end
 		png_pp[0] = png_ptr
+
+		png.png_set_chunk_malloc_max(png_ptr, 0)	-- 0 == unlimited, but if PNG_MAX_MALLOC_64K is set then that will just go to 64k...
 
 		local info_ptr = png.png_create_info_struct(png_ptr)
 		if info_ptr == nil then
