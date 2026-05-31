@@ -114,6 +114,11 @@ function Image:getBufferSize()
 	return self.width * self.height * self.channels * ffi.sizeof(self.format)
 end
 
+-- returns buffer as a Lua string
+function Image:bufferToStr()
+	return ffi.string(self.buffer, self:getBufferSize())
+end
+
 -- in-place operation
 function Image:clear()
 	ffi.fill(self.buffer, self:getBufferSize(), 0)
