@@ -1253,7 +1253,7 @@ print('possible colors: '..require 'ext.tolua'(colors))
 		end
 		dstp[0] = dstIndex
 		dstp = dstp + 1
-		srcp = srcp + chsize
+		srcp = srcp + image.channels
 	end
 	image1ch.palette = colors:mapi(function(color)
 		return string.bytes(color)
