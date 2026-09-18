@@ -851,6 +851,7 @@ function Image:flip(dest)
 	local w, h, ch, fmt = self.width, self.height, self.channels, self.format
 	if not dest then
 		dest = Image(w, h, ch, fmt)
+		dest.palette = self.palette
 	end
 	local sf = ffi.sizeof(fmt)
 	local rowsize = w * ch * sf
@@ -864,6 +865,7 @@ function Image:mirror(dest)
 	local w, h, ch, fmt = self.width, self.height, self.channels, self.format
 	if not dest then
 		dest = Image(w, h, ch, fmt)
+		dest.palette = self.palette
 	end
 	local sf = ffi.sizeof(fmt)
 	local rowsize = w * ch * sf
