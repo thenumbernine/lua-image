@@ -196,6 +196,13 @@ end
 function Image:rgb(useAlpha)	-- me merging rgb() and rgba()
 	local dstch = useAlpha and 4 or 3
 	local dst = Image(self.width, self.height, dstch, self.format)
+
+	local dstFormatInfo = formatInfos[tostring(dst.format)]
+	local alphaOpaque = 1
+	if dstFormatInfo then
+		alphaOpaque = dstFormatInfo.scale - (dstFormatInfo.bias or 0)
+	end
+
 	for j=0,self.height-1 do
 		for i=0,self.width-1 do
 			local dstOffset = dstch * (i + dst.width * j)
@@ -216,7 +223,7 @@ function Image:rgb(useAlpha)	-- me merging rgb() and rgba()
 					dst.buffer[1 + dstOffset] = grey
 					dst.buffer[2 + dstOffset] = grey
 					if useAlpha then
-						dst.buffer[3  + dstOffset] = 255
+						dst.buffer[3  + dstOffset] = alphaOpaque
 					end
 				end
 			elseif self.channels == 2 and useAlpha then
@@ -456,20 +463,57 @@ function Image:copy(args)
 	return result
 end
 
--- args: image, x, y
--- paste in-place, so don't make a new copy of the image
+--[[
+paste in-place, so don't make a new copy of the image
+args:
+	image = source image to paste
+	x, y = upper-left where to paste, default (0,0)
+	alpha = set to true to use alpha-testing when pasting.  maybe blending later. shrug.
+--]]
 function Image:pasteInto(args)
 	local pasted = assert.index(args, 'image')
 	assert.eq(pasted.channels, self.channels, "channels don't match")	-- for now ...
+	local alpha = args.alpha
+	-- if the pasted picture has no alpha then alpha-testing won't work anyways
+	if not (pasted.channels >= 4 or (pasted.palette and #pasted.palette >= 4)) then
+		alpha = false
+	end
+	local alphaOpaque = 1
+	local alphaThreshold = .5
+	if alpha then
+		local dstFormatInfo = formatInfos[tostring(dst.format)]
+		if dstFormatInfo then
+			alphaOpaque = dstFormatInfo.scale - (dstFormatInfo.bias or 0)
+			alphaThreshold = math.floor(.5 * dstFormatInfo.scale - (dstFormatInfo.bias or 0))
+		end
+	end
 	for y=0,pasted.height-1 do
 		for x=0,pasted.width-1 do
-			local destx = x + args.x
-			local desty = y + args.y
+			local destx = x + (args.x or 0)
+			local desty = y + (args.y or 0)
 			if destx >= 0 and destx < self.width
 			and desty >= 0 and desty < self.height
 			then
-				for ch=0,pasted.channels-1 do
-					self.buffer[ch+self.channels*(destx+self.width*desty)] = pasted.buffer[ch+pasted.channels*(x+pasted.width*y)]
+				local srcOfs = pasted.channels*(x+pasted.width*y)
+				local dstOfs = self.channels*(destx+self.width*desty)
+				local dontPaste
+				if alpha then
+					local srcAlpha
+					if pasted.channels >= 4 then
+						srcAlpha = pasted.buffer[3+srcOfs]
+					elseif pasted.palette then
+						local srcPalColor = pasted.palette[1+pasted.buffer[srcOfs]]
+						srcAlpha = srcPalColor and srcPalColor[4] or alphaOpaque
+					else
+						error("how did you get here, alpha-testing should have been turned off by now")
+					end
+					-- TODO consider format for thresholds
+					dontPaste = srcAlpha <= alphaThreshold
+				end
+				if not dontPaste then
+					for ch=0,pasted.channels-1 do
+						self.buffer[ch+dstOfs] = pasted.buffer[ch+srcOfs]
+					end
 				end
 			end
 		end
@@ -882,6 +926,7 @@ function Image:mirror(dest)
 end
 
 function Image:getZealousCropRect()
+	-- TODO also support indexed images with alpha palettes
 	assert.eq(self.channels, 4, "zealous crop only works with alpha channels")
 
 	-- find the first and last cols and rows with content
@@ -970,6 +1015,7 @@ function Rectangle:drawToImage(image, color)
 					image.buffer[1 + image.channels * index] = color.y
 					image.buffer[2 + image.channels * index] = color.z
 					if image.channels >= 4 then
+						-- TODO consider format
 						image.buffer[3 + image.channels * index] = 255
 					end
 				end
@@ -1021,6 +1067,7 @@ function Blob:drawMaskToImage(image, color)
 					image.buffer[1 + image.channels * index] = color.y
 					image.buffer[2 + image.channels * index] = color.z
 					if image.channels >= 4 then
+						-- TODO consider format
 						image.buffer[3 + image.channels * index] = 255
 					end
 				end
@@ -1210,6 +1257,7 @@ function Image:drawRegions(regions)
 	self:clear()
 	if self.channels > 3 then
 		for i=0,self.width*self.height-1 do
+			-- TODO consider format
 			self.buffer[3 + self.channels * i] = 255
 		end
 	end
